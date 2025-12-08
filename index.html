@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="main-menu">
+        <div>
+            <div>
+                <img src="Images/logo.png" alt="">
+            </div>
+            <h1 class="title-menu">MAIN<span class="boom"> </span>MENU</h1>
+
+            <input type="text" placeholder="Input Username" id="username">
+            <select name="level" id="level">
+                <option disabled selected>Select Level</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+            <div>
+                <button id="play">Play</button>
+                <button id="open-instruction">Instruction</button>
+            </div>
+        </div>
+    </div>
+    <div class="instruction">
+        <div class="instruction-text">
+            <button class="close-instruction" id="close-button-instruction">X</button>
+            <h1>How to play game</h1>
+            <p>1. Input Username</p>
+        </div>
+    </div>
+    <div class="pause-game">
+        <div class="pause-text">
+            <button class="close-pause" id="close-button-pause">X</button>
+            <h1>Pause Menu</h1>
+            <p>Apakah kamu ingin melanjutkan game atau tidak?</p>
+            <button class="pause-button">Keluar</button>
+            <button class="pause-button">Lanjut</button>
+        </div>
+    </div>
+    <div class="game">
+        <h1 class="title-game">Games</h1>
+        <canvas id="canvas" width="1000" height="600"></canvas>
+    </div>
+</body>
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext("2d");
+    const closeButtonInstruction = document.getElementById('close-button-instruction');
+    const closeButtonPause = document.getElementById('close-button-pause');
+    const openButton = document.getElementById('open-instruction');
+    const mainMenu = document.querySelector(".main-menu");
+    const instructionMenu = document.querySelector(".instruction");
+    const pauseMenu = document.querySelector(".pause-game");
+    const playButton = document.getElementById("play");
+    const gameMenu = document.querySelector(".game");
+    const usernameInput = document.getElementById("username");
+    const levelSection = document.getElementById("level");
+    const grid = 64;
+    const numRows = 9;
+    const numCols = 11;
+    const mainMap = [   
+        [1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,2,0,2,0,0,0,1],
+        [1,0,1,0,1,0,1,2,1,2,1],
+        [1,0,0,0,2,0,0,0,0,0,1],
+        [1,2,1,0,1,0,1,2,1,0,1],
+        [1,0,2,0,2,0,2,0,0,2,1],
+        [1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1]
+    ];
+    let map = mainMap;
+    let gameTime = 120;
+    let timer = 0;
+    let isPaused = null;    
+
+    //image
+    const playerDImage = new Image();
+    playerDImage.src = "Images/char_down.png"
+
+    const playerLImage = new Image();
+    playerLImage.src = "Images/char_left.png"
+
+    const playerRImage = new Image();
+    playerRImage.src = "Images/char_right.png"
+
+    const playerUImage = new Image();
+    playerUImage.src = "Images/char_up.png"
+
+    const bgImage = new Image();
+    bgImage.src = "Images/background.jpg"
+
+    const softWall = new Image();
+    softWall.src = "Images/wall.png"
+
+    const crackWall = new Image();
+    crackWall.src = "Images/wall_crack.png"
+
+    //player
+    const player = {
+        row: 1,
+        col: 1,
+        numBombs: 1,
+        bombSize: 3,
+        radius: grid * 0.35,
+        currentImage: playerDImage,
+        render() {
+
+            // Gambar karakter
+            if (this.currentImage.complete) {
+                ctx.drawImage(this.currentImage, this.col * grid, this.row * grid, grid, grid);
+            }
+        }
+    }
+
+    const tileSize = 65;
+
+    const randomMap =  {
+        map1: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,2,0,2,0,0,0,1],
+            [1,0,1,0,1,0,1,2,1,2,1],
+            [1,0,0,0,2,0,0,0,0,0,1],
+            [1,2,1,0,1,0,1,2,1,0,1],
+            [1,0,2,0,2,0,2,0,0,2,1],
+            [1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        
+        map2: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,2,2,0,2,2,2,0,1],
+            [1,0,1,0,1,0,1,2,1,2,1],
+            [1,0,0,0,2,2,2,0,0,0,1],
+            [1,2,1,2,1,2,1,2,1,0,1],
+            [1,0,2,2,2,2,2,0,0,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,0,0,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+
+        map3: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,2,2,2,2,2,2,1],
+            [1,0,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+    }
+
+    const types = {
+        wall: 1,
+        softWall: 2,
+        bomb: 3
+    };
+
+    let cells = []
+
+    function generateLevel() {
+        cells = [];
+
+        for (let i = 0; i < numRows; i++) {
+            cells[i] = [];
+
+            for (let col = 0; col < numCols; col++) {
+                cells[i][col] = map[i][col];
+
+                if (map[i][col] === 0 && Math.random() < 0.90) {
+                    cells[i][col] = types.softWall;
+                }
+            }
+        }
+    }
+
+    function drawMap() {
+        // Draw HANYA soft wall (nilai 2) dari map original
+        for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+                const x = col * grid;
+                const y = row * grid;
+
+                // Hanya draw jika map[row][col] === 2 (soft wall)
+                if (map[row][col] === 2) {
+                    if (softWall.complete) {
+                        ctx.drawImage(softWall, x, y, grid, grid);
+                    }
+                }
+            }
+        }
+    }
+    
+
+    function startTimer() {
+        gameTime = 120;
+
+        setInterval(() => {
+            if (!isPaused) {
+                timer++
+            }
+
+            if (timer >= gameTime) {
+                clearInterval();
+                alert("Waktu telah habis");
+                console.log(timer)
+                location.reload();
+            }
+        }, 1000)
+    }
+
+    function bomb(row, col, size, owner) {
+        this.row = row
+        this.col = col
+        this.size = size
+        this.owner = owner
+
+        this.bombTimer = 3000
+
+        
+    }
+
+
+    function gameLoad() {
+        // Panel kanan
+        ctx.fillStyle = "#333";  
+        ctx.fillRect(700, 0, 400, canvas.height);
+
+        // Tulis teks status
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText("Player : " + usernameInput.value, 700, 100);
+        ctx.fillText("Time   : " + timer, 700, 130);
+        ctx.fillText("❤❤❤", 700, 180);
+        ctx.fillText("Brick = 4", 700, 220);
+        ctx.fillText("Bomb  = 0", 700, 250);
+        ctx.fillText("Ice   = 1", 700, 280);
+        
+        // Hapus generateLevel() - gunakan map original
+        startTimer();
+        gameLoop();
+    }
+
+    
+    openButton.addEventListener("click", () => {
+        instructionMenu.classList.add("show")
+    })
+
+    closeButtonInstruction.addEventListener("click", () => {
+        instructionMenu.classList.remove("show");
+    })
+
+    closeButtonPause.addEventListener("click", () => {
+        isPaused = false;
+        pauseMenu.classList.remove("show");
+    })
+
+    playButton.addEventListener("click", () => {
+        if (usernameInput.value < 4) {
+            alert("tolong masukan username");
+            return;
+        }// else if (usernameInput.length <= 4) {
+        //     alert("username minimal 4 huruf");
+        //     return;
+        // }
+        
+        switch(levelSection.value) {
+            case ("easy"):
+                map = randomMap.map1
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                gameMenu.classList.add("playing");
+                gameLoad()
+                return;
+            case ("medium"):
+                map = randomMap.map2
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                gameMenu.classList.add("playing");
+                gameLoad()
+                return;
+            case ("hard"):
+                map = randomMap.map3
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                gameMenu.classList.add("playing");
+                gameLoad()
+                return;
+            default:
+                alert("level belum tersedia");
+                return;
+        }
+    })
+
+
+
+    
+
+    // function movePlayer(e) {
+    //     let col = player.col
+    //     let row = player.row
+        
+    //     if (e.key == "w") {
+    //         removePlayer(player.x, player.y)
+    //         player.y--
+    //         drawEntities(playerUImage, player.x, player.y)
+    //     }else if (e.key == "a") {
+    //         removePlayer(player.x, player.y)
+    //         player.x--
+    //         drawEntities(playerLImage, player.x, player.y)
+    //     }else if (e.key == "s") {
+    //         removePlayer(player.x, player.y)
+    //         player.y++
+    //         drawEntities(playerDImage, player.x, player.y)
+    //     }else if (e.key == "d") {
+    //         removePlayer(player.x, player.y)
+    //         player.x++
+    //         drawEntities(playerRImage, player.x, player.y)
+    //     }
+    // }
+    function movePlayer(e) {
+        let col = player.col
+        let row = player.row
+        
+        if (e.key == "w" || e.key == "ArrowUp") {
+            row--
+            player.currentImage = playerUImage;
+        }else if (e.key == "a" || e.key == "ArrowLeft") {
+            col--
+            player.currentImage = playerLImage;
+        }else if (e.key == "s" || e.key == "ArrowDown") {
+            row++
+            player.currentImage = playerDImage;
+        }else if (e.key == "d" || e.key == "ArrowRight") {
+            col++
+            player.currentImage = playerRImage;
+        }
+
+        if (map[row] && map[row][col] === 0) {
+            player.row = row;
+            player.col = col;
+        }
+    }
+
+    function removePlayer(positionX, positionY) {
+        let tile = map[positionX, positionY];
+
+        // if (tile === 0) {
+
+        // } else if () {
+
+        // }
+        //ctx.clearRect(positionX*tileSize, positionY*tileSize, tileSize, tileSize)
+    }
+
+    function drawEntities(image, positionX, positionY) {
+        if (image.complete) {
+            const x = positionX * grid;
+            const y = positionY * grid;
+            ctx.drawImage(image, x, y, grid, grid);
+        }
+    }
+
+    function gameLoop () {
+        ctx.clearRect(0, 0, 1000, 600);
+        
+        if (bgImage.complete) {
+            ctx.drawImage(bgImage, 0, 0, 704, 576);
+        }
+
+        drawMap();
+
+        player.render();
+
+        ctx.fillStyle = "#333";  
+        ctx.fillRect(700, 0, 400, canvas.height);
+        
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText("Player : " + usernameInput.value, 720, 100);
+        ctx.fillText("Time   : " + timer, 720, 130);
+        ctx.fillText("❤❤❤", 720, 180);
+        ctx.fillText("Brick = 4", 720, 220);
+        ctx.fillText("Bomb  = 0", 720, 250);
+        ctx.fillText("Ice   = 1", 720, 280);
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", (e) => {
+        movePlayer(e)
+
+        if (e.key == "Escape" && isPaused) {
+            isPaused = false;
+            pauseMenu.classList.remove("show");
+        } else if(e.key == "Escape") {
+            isPaused = true;
+            pauseMenu.classList.add("show")
+        }
+        
+    })
+    
+
+    // document.addEventListener("keydown", (e) => {
+    //     if (e.key == "d") {
+    //         player.x++
+    //         console.log("aaaaa")
+    //     }
+    // })
+</script>
+</html>
