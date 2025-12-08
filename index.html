@@ -39,8 +39,8 @@
             <button class="close-pause" id="close-button-pause">X</button>
             <h1>Pause Menu</h1>
             <p>Apakah kamu ingin melanjutkan game atau tidak?</p>
-            <button class="pause-button">Keluar</button>
-            <button class="pause-button">Lanjut</button>
+            <button class="pause-button" id="stop-game">Keluar</button>
+            <button class="pause-button" id="continue-game">Lanjut</button>
         </div>
     </div>
     <div class="game">
@@ -61,6 +61,8 @@
     const gameMenu = document.querySelector(".game");
     const usernameInput = document.getElementById("username");
     const levelSection = document.getElementById("level");
+    const buttonStopGame = document.getElementById("stop-game");
+    const buttonContinueGame = document.getElementById("continue-game");
     const grid = 64;
     const numRows = 9;
     const numCols = 11;
@@ -79,6 +81,7 @@
     let gameTime = 120;
     let timer = 0;
     let isPaused = null;    
+    let brick = 0;
 
     //image
     const playerDImage = new Image();
@@ -102,6 +105,21 @@
     const crackWall = new Image();
     crackWall.src = "Images/wall_crack.png"
 
+    const dogUImage = new Image();
+    dogUImage.src = "Images/dog_up.png"
+
+    const dogDImage = new Image();
+    dogDImage.src = "Images/dog_down.png"
+
+    const dogLImage = new Image();
+    dogLImage.src = "Images/dog_left.png"
+
+    const dogRImage = new Image();
+    dogRImage.src = "Images/dog_right.png"
+
+    const bombImage = new Image();
+    bombImage.src = "Images/bomb.png"
+
     //player
     const player = {
         row: 1,
@@ -124,7 +142,7 @@
     const randomMap =  {
         map1: [
             [1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,2,0,2,0,0,0,1],
+            [1,0,0,0,2,0,2,0,0,4,1],
             [1,0,1,0,1,0,1,2,1,2,1],
             [1,0,0,0,2,0,0,0,0,0,1],
             [1,2,1,0,1,0,1,2,1,0,1],
@@ -199,6 +217,44 @@
             }
         }
     }
+
+    function drawDog() {
+        for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+                const x = col * grid;
+                const y = row * grid;
+
+                if (map[row][col] === 4) {
+                    if (dogLImage.complete) {
+                        ctx.drawImage(dogLImage, x, y, grid, grid);
+                    }
+                }
+            }
+        }
+    }
+
+    function drawBomb(col, row) {
+        let x = col * grid;
+        let y = row * grid;
+
+        ctx.drawImage(bombImage, x, y, grid, grid);
+    }
+
+    function calcWallCount() {
+        for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+                const x = col * grid;
+                const y = row * grid;
+
+                // Hanya draw jika map[row][col] === 2 (soft wall)
+                if (map[row][col] === 2) {
+                    if (softWall.complete) {
+                        brick++;
+                    }
+                }
+            }
+        }
+    }
     
 
     function startTimer() {
@@ -211,7 +267,6 @@
 
             if (timer >= gameTime) {
                 clearInterval();
-                alert("Waktu telah habis");
                 console.log(timer)
                 location.reload();
             }
@@ -242,13 +297,14 @@
         ctx.fillText("Player : " + usernameInput.value, 700, 100);
         ctx.fillText("Time   : " + timer, 700, 130);
         ctx.fillText("❤❤❤", 700, 180);
-        ctx.fillText("Brick = 4", 700, 220);
+        ctx.fillText("Brick = " + brick, 700, 220);
         ctx.fillText("Bomb  = 0", 700, 250);
         ctx.fillText("Ice   = 1", 700, 280);
         
         // Hapus generateLevel() - gunakan map original
         startTimer();
         gameLoop();
+        calcWallCount();
     }
 
     
@@ -261,6 +317,15 @@
     })
 
     closeButtonPause.addEventListener("click", () => {
+        isPaused = false;
+        pauseMenu.classList.remove("show");
+    })
+
+    buttonStopGame.addEventListener("click", () => {
+        location.reload();
+    })
+
+    buttonContinueGame.addEventListener("click", () => {
         isPaused = false;
         pauseMenu.classList.remove("show");
     })
@@ -352,6 +417,16 @@
         }
     }
 
+    function playerBomb(e) {
+        let col = player.col;
+        let row = player.row;
+
+        if (e.key == "Space" || e.key == " ") {
+            console.log("space!!")
+            drawBomb(col, row);
+        }
+    }
+
     function removePlayer(positionX, positionY) {
         let tile = map[positionX, positionY];
 
@@ -379,6 +454,7 @@
         }
 
         drawMap();
+        drawDog();
 
         player.render();
 
@@ -391,7 +467,7 @@
         ctx.fillText("Player : " + usernameInput.value, 720, 100);
         ctx.fillText("Time   : " + timer, 720, 130);
         ctx.fillText("❤❤❤", 720, 180);
-        ctx.fillText("Brick = 4", 720, 220);
+        ctx.fillText("Brick = " + brick, 720, 220);
         ctx.fillText("Bomb  = 0", 720, 250);
         ctx.fillText("Ice   = 1", 720, 280);
         
@@ -400,6 +476,7 @@
 
     document.addEventListener("keydown", (e) => {
         movePlayer(e)
+        playerBomb(e)
 
         if (e.key == "Escape" && isPaused) {
             isPaused = false;
