@@ -5,6 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .leaderboard {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 360px;
+            max-height: 70vh;
+            overflow: auto;
+            display: none;
+            z-index: 9999;
+        }
+        .leaderboard.show { display: block; }
+        .leaderboard h2 { margin: 0 0 10px 0; font-size: 20px; }
+        .leaderboard .entries { margin: 8px 0 12px 0; }
+        .leaderboard .entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .leaderboard .actions { text-align: right; margin-top: 12px; }
+        .leaderboard button { margin-left: 8px; }
+    </style>
 </head>
 <body>
     <div class="main-menu">
@@ -51,6 +74,14 @@
                 <button id="go-restart">Restart</button>
                 <button id="go-main">Main Menu</button>
             </div>
+        </div>
+    </div>
+    <div class="leaderboard" id="leaderboard">
+        <h2>Leaderboard</h2>
+        <div class="entries"></div>
+        <div class="actions">
+            <button id="lb-restart">Restart</button>
+            <button id="lb-main">Main Menu</button>
         </div>
     </div>
     <div class="game">
@@ -136,6 +167,14 @@
 
     const explosionImage = new Image();
     explosionImage.src = "Images/explosion.png"
+    const heartImage = new Image();
+    heartImage.src = "Images/heart.png"
+
+    const iceImage = new Image();
+    iceImage.src = "Images/ice.png"
+
+    const tntImage = new Image();
+    tntImage.src = "Images/tnt.png"
     //player
     const player = {
         row: 1,
@@ -194,6 +233,218 @@
         ],
     }
 
+    // Generate a random hard map procedurally.
+    // Rules:
+    // - Outer border are solid walls (1)
+    // - Regular solid walls placed on a grid (r%2==0 && c%2==0) to create labyrinth
+    // - Other cells: mostly soft walls (2) with some empty spaces (0) and occasional dog spawns (4)
+    function generateRandomHardMap() {
+        const m = [];
+        const softProb = 0.60; // probability to place a soft wall
+        const maxDogs = 3; // exactly up to 3 dogs for level 3
+
+        // first pass: build base map with borders and permanent solid walls
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // borders
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // place permanent solid walls in a checker pattern (like classic bomberman)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // ensure player's starting area (1,1) and neighbors are empty
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // other cells: mostly soft walls or empty
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // second pass: collect candidate cells that form 'pockets' (enclosed)
+        // We prefer cells where at least 3 of 4 orthogonal neighbors are non-walkable (1 or 2)
+        // Fallback: allow cells with >=2 non-walkable neighbors if not enough strict candidates
+        const strict = [];
+        const relaxed = [];
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                // skip player start vicinity
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                if (manh < 4) continue; // too close to player
+
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        const candidates = strict.length ? strict : relaxed;
+        // shuffle and pick up to maxDogs
+        candidates.sort(() => Math.random() - 0.5);
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4;
+        }
+
+        return m;
+    }
+
+    function generateRandomNormalMap() {
+        const m = [];
+        const softProb = 0.40; // probability to place a soft wall
+        const maxDogs = 2; // exactly up to 3 dogs for level 3
+
+        // first pass: build base map with borders and permanent solid walls
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // borders
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // place permanent solid walls in a checker pattern (like classic bomberman)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // ensure player's starting area (1,1) and neighbors are empty
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // other cells: mostly soft walls or empty
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // second pass: collect candidate cells that form 'pockets' (enclosed)
+        // We prefer cells where at least 3 of 4 orthogonal neighbors are non-walkable (1 or 2)
+        // Fallback: allow cells with >=2 non-walkable neighbors if not enough strict candidates
+        const strict = [];
+        const relaxed = [];
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                // skip player start vicinity
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                if (manh < 4) continue; // too close to player
+
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        const candidates = strict.length ? strict : relaxed;
+        // shuffle and pick up to maxDogs
+        candidates.sort(() => Math.random() - 0.5);
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4;
+        }
+
+        return m;
+    }
+
+    function generateRandomEasyMap() {
+        const m = [];
+        const softProb = 0.20; // probability to place a soft wall
+        const maxDogs = 1; // exactly up to 3 dogs for level 3
+
+        // first pass: build base map with borders and permanent solid walls
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // borders
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // place permanent solid walls in a checker pattern (like classic bomberman)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // ensure player's starting area (1,1) and neighbors are empty
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // other cells: mostly soft walls or empty
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // second pass: collect candidate cells that form 'pockets' (enclosed)
+        // We prefer cells where at least 3 of 4 orthogonal neighbors are non-walkable (1 or 2)
+        // Fallback: allow cells with >=2 non-walkable neighbors if not enough strict candidates
+        const strict = [];
+        const relaxed = [];
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                // skip player start vicinity
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                if (manh < 4) continue; // too close to player
+
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        const candidates = strict.length ? strict : relaxed;
+        // shuffle and pick up to maxDogs
+        candidates.sort(() => Math.random() - 0.5);
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4;
+        }
+
+        return m;
+    }
+
     const types = {
         wall: 1,
         softWall: 2,
@@ -202,6 +453,8 @@
 
     let cells = []
     let dogs = [];
+    let leaderboardShown = false;
+    let items = []; // {row, col, type}
 
     function spawnDogs() {
         dogs = [];
@@ -359,6 +612,21 @@
         }
     }
 
+    function drawItems() {
+        if (!Array.isArray(items)) return;
+        for (let it of items) {
+            const x = it.col * grid;
+            const y = it.row * grid;
+            try {
+                if (it.type === 'heart' && heartImage.complete) ctx.drawImage(heartImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+                else if (it.type === 'ice' && iceImage.complete) ctx.drawImage(iceImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+                else if (it.type === 'tnt' && tntImage.complete) ctx.drawImage(tntImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+            } catch (err) {
+                console.warn('draw item failed', err);
+            }
+        }
+    }
+
     function updateBomb() {
         for (let i = bombs.length - 1; i >= 0; i--) {
             bombs[i].timer -= 16;
@@ -399,16 +667,12 @@
     }
 
     function calcWallCount() {
+        // reset count then count all soft walls (value 2) in current map
+        brick = 0;
         for (let row = 0; row < numRows; row++) {
             for (let col = 0; col < numCols; col++) {
-                const x = col * grid;
-                const y = row * grid;
-
-                // Hanya draw jika map[row][col] === 2 (soft wall)
-                if (map[row][col] === 2) {
-                    if (softWall.complete) {
-                        brick++;
-                    }
+                if (map[row] && map[row][col] === 2) {
+                    brick++;
                 }
             }
         }
@@ -460,10 +724,11 @@
         ctx.fillText("Ice   = 1", 700, 280);
         
         // Hapus generateLevel() - gunakan map original
+        // Hitung jumlah soft walls terlebih dahulu
+        calcWallCount();
         startTimer();
         spawnDogs();
         gameLoop();
-        calcWallCount();
     }
 
     function showGameOver() {
@@ -473,6 +738,37 @@
             if (finalScore) finalScore.textContent = 'Hati habis!';
             gameOverEl.classList.add('show');
         }
+    }
+
+    function renderLeaderboard() {
+        const list = JSON.parse(localStorage.getItem('bomberLeaderboard') || '[]');
+        const container = document.querySelector('#leaderboard .entries');
+        if (!container) return;
+        container.innerHTML = '';
+        list.forEach((e, i) => {
+            const div = document.createElement('div');
+            div.className = 'entry';
+            div.textContent = `${i+1}. ${e.name} — ${e.score} (timeLeft:${e.timeLeft}, hp:${e.health})`;
+            container.appendChild(div);
+        });
+    }
+
+    function showLeaderboard() {
+        if (leaderboardShown) return;
+        leaderboardShown = true;
+        isPaused = true;
+        const remaining = Math.max(0, gameTime - timer);
+        const scoreVal = remaining + (player.health || 0) * 10;
+        const username = usernameInput.value || 'Anonymous';
+        const entry = { name: username, score: scoreVal, timeLeft: remaining, health: player.health, date: new Date().toISOString() };
+        let list = JSON.parse(localStorage.getItem('bomberLeaderboard') || '[]');
+        list.push(entry);
+        list.sort((a,b) => b.score - a.score);
+        list = list.slice(0, 10);
+        localStorage.setItem('bomberLeaderboard', JSON.stringify(list));
+        renderLeaderboard();
+        const lb = document.getElementById('leaderboard');
+        if (lb) lb.classList.add('show');
     }
 
     if (goRestart) {
@@ -489,6 +785,25 @@
             gameMenu.classList.remove('playing');
             isPaused = null;
             // reset state sederhana dengan reload untuk keamanan
+            location.reload();
+        });
+    }
+
+    // Leaderboard buttons
+    const lbRestart = document.getElementById('lb-restart');
+    const lbMain = document.getElementById('lb-main');
+    if (lbRestart) {
+        lbRestart.addEventListener('click', () => {
+            location.reload();
+        });
+    }
+    if (lbMain) {
+        lbMain.addEventListener('click', () => {
+            const lb = document.getElementById('leaderboard');
+            if (lb) lb.classList.remove('show');
+            mainMenu.classList.remove('hide');
+            gameMenu.classList.remove('playing');
+            isPaused = null;
             location.reload();
         });
     }
@@ -527,21 +842,22 @@
         
         switch(levelSection.value) {
             case ("easy"):
-                map = randomMap.map1
+                map = generateRandomEasyMap();
                 instructionMenu.classList.remove("show");
                 mainMenu.classList.add("hide");
                 gameMenu.classList.add("playing");
                 gameLoad()
                 return;
             case ("medium"):
-                map = randomMap.map2
+                map = generateRandomNormalMap();
                 instructionMenu.classList.remove("show");
                 mainMenu.classList.add("hide");
                 gameMenu.classList.add("playing");
                 gameLoad()
                 return;
             case ("hard"):
-                map = randomMap.map3
+                // generate a fresh random hard map each play
+                map = generateRandomHardMap();
                 instructionMenu.classList.remove("show");
                 mainMenu.classList.add("hide");
                 gameMenu.classList.add("playing");
@@ -600,6 +916,30 @@
         if (map[row] && map[row][col] === 0) {
             player.row = row;
             player.col = col;
+            // check for item pickup
+            const idx = items.findIndex(it => it.row === player.row && it.col === player.col);
+            if (idx !== -1) {
+                const it = items.splice(idx, 1)[0];
+                if (it.type === 'heart') {
+                    player.health = Math.min(3, (player.health || 0) + 1);
+                } else if (it.type === 'ice') {
+                    // slow dogs for 5 seconds
+                    for (let d of dogs) {
+                        if (!d._origInterval) d._origInterval = d.moveInterval;
+                        d.moveInterval = d._origInterval * 2;
+                    }
+                    setTimeout(() => {
+                        for (let d of dogs) {
+                            if (d._origInterval) {
+                                d.moveInterval = d._origInterval;
+                                delete d._origInterval;
+                            }
+                        }
+                    }, 5000);
+                } else if (it.type === 'tnt') {
+                    player.bombSize = Math.min(5, (player.bombSize || 1) + 1);
+                }
+            }
         }
     }
 
@@ -660,7 +1000,23 @@
                 if (map[r][c] === 2) {
                     // hancurkan soft wall
                     map[r][c] = 0;
-                    if (brick > 0) brick--;
+                    if (brick > 0) {
+                        brick--;
+                        // jika semua brick hancur -> tampilkan leaderboard
+                        if (brick === 0) {
+                            showLeaderboard();
+                        }
+                    }
+
+                    // Chance to drop an item when soft wall broken
+                    // 25% chance to drop one of three items
+                    const dropChance = 0.25;
+                    if (Math.random() < dropChance) {
+                        const types = ['heart','ice','tnt'];
+                        const t = types[Math.floor(Math.random() * types.length)];
+                        items.push({ row: r, col: c, type: t });
+                    }
+
                     // hentikan propagasi setelah menghancurkan soft wall
                     break;
                 }
@@ -764,6 +1120,7 @@
         }
 
         drawMap();
+        drawItems();
         drawDog();
         drawBomb();
         updateBomb();
