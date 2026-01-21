@@ -43,6 +43,16 @@
             <button class="pause-button" id="continue-game">Lanjut</button>
         </div>
     </div>
+    <div class="game-over" id="game-over">
+        <div class="box">
+            <h1>Game Over</h1>
+            <p id="final-score">Kamu kalah!</p>
+            <div>
+                <button id="go-restart">Restart</button>
+                <button id="go-main">Main Menu</button>
+            </div>
+        </div>
+    </div>
     <div class="game">
         <h1 class="title-game">Games</h1>
         <canvas id="canvas" width="1000" height="600"></canvas>
@@ -51,6 +61,9 @@
 <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext("2d");
+    const gameOverEl = document.getElementById('game-over');
+    const goRestart = document.getElementById('go-restart');
+    const goMain = document.getElementById('go-main');
     const closeButtonInstruction = document.getElementById('close-button-instruction');
     const closeButtonPause = document.getElementById('close-button-pause');
     const openButton = document.getElementById('open-instruction');
@@ -121,6 +134,8 @@
     const bombImage = new Image();
     bombImage.src = "Images/bomb.png"
 
+    const explosionImage = new Image();
+    explosionImage.src = "Images/explosion.png"
     //player
     const player = {
         row: 1,
@@ -186,6 +201,93 @@
     };
 
     let cells = []
+    let dogs = [];
+
+    function spawnDogs() {
+        dogs = [];
+        for (let r = 0; r < numRows; r++) {
+            for (let c = 0; c < numCols; c++) {
+                if (map[r][c] === 4) {
+                    dogs.push({ row: r, col: c, dir: 'left', moveTimer: 0, moveInterval: 400 });
+                    // clear map cell so it's not treated as obstacle in drawing
+                    map[r][c] = 0;
+                }
+            }
+        }
+    }
+
+    // simple BFS to find next step from (sr,sc) to (tr,tc)
+    function findNextStep(sr, sc, tr, tc) {
+        const q = [];
+        const visited = Array.from({ length: numRows }, () => Array(numCols).fill(false));
+        const prev = Array.from({ length: numRows }, () => Array(numCols).fill(null));
+        q.push([sr, sc]);
+        visited[sr][sc] = true;
+        const dirs = [ [-1,0],[1,0],[0,-1],[0,1] ];
+
+        while (q.length) {
+            const [r,c] = q.shift();
+            if (r === tr && c === tc) break;
+            for (let [dr,dc] of dirs) {
+                const nr = r + dr, nc = c + dc;
+                if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;
+                if (visited[nr][nc]) continue;
+                // blocked if wall (1) or soft wall (2)
+                if (map[nr][nc] === 1 || map[nr][nc] === 2) continue;
+                visited[nr][nc] = true;
+                prev[nr][nc] = [r,c];
+                q.push([nr,nc]);
+            }
+        }
+
+        if (!visited[tr] || !visited[tr][tc]) return null;
+        // reconstruct path
+        let cur = [tr, tc];
+        const path = [];
+        while (cur && !(cur[0] === sr && cur[1] === sc)) {
+            path.push(cur);
+            cur = prev[cur[0]][cur[1]];
+        }
+        if (path.length === 0) return null;
+        const next = path[path.length - 1];
+        return next; // [r,c]
+    }
+
+    function updateDogs(delta) {
+        if (!Array.isArray(dogs)) return;
+        for (let d of dogs) {
+            d.moveTimer -= delta;
+            if (d.moveTimer > 0) continue;
+            d.moveTimer = d.moveInterval;
+            // find next step towards player
+            const next = findNextStep(d.row, d.col, player.row, player.col);
+            if (next) {
+                const [nr, nc] = next;
+                // determine direction
+                if (nr < d.row) d.dir = 'up';
+                else if (nr > d.row) d.dir = 'down';
+                else if (nc < d.col) d.dir = 'left';
+                else if (nc > d.col) d.dir = 'right';
+
+                d.row = nr; d.col = nc;
+                // if dog steps on player -> damage
+                if (d.row === player.row && d.col === player.col) {
+                    player.health = Math.max(0, player.health - 1);
+                    if (player.health <= 0) showGameOver();
+                }
+            } else {
+                // no path: optionally wander randomly a step
+                const choices = [[-1,0],[1,0],[0,-1],[0,1]];
+                for (let [dr,dc] of choices) {
+                    const nr = d.row + dr, nc = d.col + dc;
+                    if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;
+                    if (map[nr][nc] === 0 && Math.random() < 0.25) {
+                        d.row = nr; d.col = nc; break;
+                    }
+                }
+            }
+        }
+    }
 
     function generateLevel() {
         cells = [];
@@ -221,17 +323,18 @@
     }
 
     function drawDog() {
-        for (let row = 0; row < numRows; row++) {
-            for (let col = 0; col < numCols; col++) {
-                const x = col * grid;
-                const y = row * grid;
+        // draw dogs from `dogs` array (spawned at level load)
+        if (!Array.isArray(dogs)) return;
+        for (let d of dogs) {
+            const x = d.col * grid;
+            const y = d.row * grid;
+            let img = dogLImage;
+            if (d.dir === 'up') img = dogUImage;
+            else if (d.dir === 'down') img = dogDImage;
+            else if (d.dir === 'left') img = dogLImage;
+            else if (d.dir === 'right') img = dogRImage;
 
-                if (map[row][col] === 4) {
-                    if (dogLImage.complete) {
-                        ctx.drawImage(dogLImage, x, y, grid, grid);
-                    }
-                }
-            }
+            if (img && img.complete) ctx.drawImage(img, x, y, grid, grid);
         }
     }
 
@@ -239,9 +342,18 @@
         for (let bomb of bombs) {
             let x = bomb.col * grid;
             let y = bomb.row * grid;
-
-            if (bombImage.complete) {
-                ctx.drawImage(bombImage, x, y, grid, grid);
+            // Jika bom sudah meledak, kita gunakan efek CSS DOM, tidak menggambar ledakan di canvas
+            if (bomb.exploded) {
+                // skip canvas explosion drawing
+                continue;
+            } else {
+                try {
+                    if (bombImage.complete) {
+                        ctx.drawImage(bombImage, x, y, grid, grid);
+                    }
+                } catch (err) {
+                    console.warn('draw bomb failed', err);
+                }
             }
 
         }
@@ -252,8 +364,24 @@
             bombs[i].timer -= 16;
             console.log(bombs[i].timer);
 
-            if (bombs[i].timer <= 0) {
-                bombs.splice(i, 1);
+            // Jika timer selesai dan bom belum meledak -> meledakkan
+            if (bombs[i].timer <= 0 && !bombs[i].exploded) {
+                explodeBomb(bombs[i]);
+                continue;
+            }
+
+            // Jika sudah meledak, hitung explosionTimer untuk menghapus efek
+            if (bombs[i].exploded) {
+                bombs[i].explosionTimer -= 16;
+                if (bombs[i].explosionTimer <= 0) {
+                    // hapus DOM explosion jika ada
+                    if (bombs[i].domExplosions && Array.isArray(bombs[i].domExplosions)) {
+                        for (let el of bombs[i].domExplosions) {
+                            if (el && el.parentNode) el.parentNode.removeChild(el);
+                        }
+                    }
+                    bombs.splice(i, 1);
+                }
             }
         }
     }
@@ -333,8 +461,36 @@
         
         // Hapus generateLevel() - gunakan map original
         startTimer();
+        spawnDogs();
         gameLoop();
         calcWallCount();
+    }
+
+    function showGameOver() {
+        isPaused = true;
+        if (gameOverEl) {
+            const finalScore = document.getElementById('final-score');
+            if (finalScore) finalScore.textContent = 'Hati habis!';
+            gameOverEl.classList.add('show');
+        }
+    }
+
+    if (goRestart) {
+        goRestart.addEventListener('click', () => {
+            location.reload();
+        });
+    }
+
+    if (goMain) {
+        goMain.addEventListener('click', () => {
+            // kembali ke main menu
+            gameOverEl.classList.remove('show');
+            mainMenu.classList.remove('hide');
+            gameMenu.classList.remove('playing');
+            isPaused = null;
+            // reset state sederhana dengan reload untuk keamanan
+            location.reload();
+        });
     }
 
     
@@ -464,8 +620,120 @@
             bombs.push({
                 col: col,
                 row: row,
-                timer: 3000
+                timer: 3000,
+                size: player.bombSize || 1,
+                exploded: false,
+                explosions: null,
+                explosionTimer: 0
             });
+        }
+    }
+
+    function explodeBomb(bomb) {
+        bomb.exploded = true;
+        // waktu tampil ledakan (ms)
+        bomb.explosionTimer = 600;
+        bomb.explosions = [];
+
+        // Pastikan size minimal 1
+        const size = Math.max(1, bomb.size || 1);
+
+        // Masukkan tile pusat
+        bomb.explosions.push({ row: bomb.row, col: bomb.col });
+
+        const directions = [ {r:-1,c:0}, {r:1,c:0}, {r:0,c:-1}, {r:0,c:1} ];
+
+        // Untuk setiap arah, tambahkan sampai ukuran (size-1) atau sampai bertemu wall tipe 1
+        for (let d of directions) {
+            for (let step = 1; step < size; step++) {
+                const r = bomb.row + d.r * step;
+                const c = bomb.col + d.c * step;
+
+                if (!map[r] || typeof map[r][c] === 'undefined') break;
+
+                // berhenti jika wall kuat (1) — tidak menimpa dan tidak menambah efek di belakangnya
+                if (map[r][c] === 1) break;
+
+                // tambahkan tile terpengaruh (efek ledakan ditampilkan), tapi hanya tipe 2 yang diubah
+                bomb.explosions.push({ row: r, col: c });
+
+                if (map[r][c] === 2) {
+                    // hancurkan soft wall
+                    map[r][c] = 0;
+                    if (brick > 0) brick--;
+                    // hentikan propagasi setelah menghancurkan soft wall
+                    break;
+                }
+                // jika kosong (0) teruskan sampai mencapai size
+            }
+        }
+
+        // Efek ke pemain: hanya mengurangi health jika posisi pemain berada di salah satu tile ledakan
+        let playerHit = false;
+        for (let cell of bomb.explosions) {
+            if (player.row === cell.row && player.col === cell.col) {
+                player.health = Math.max(0, player.health - 1);
+                playerHit = true;
+            }
+        }
+
+        // Jika nyawa habis, tampilkan Game Over
+        if (player.health <= 0) {
+            showGameOver();
+        }
+
+        // Buat elemen DOM explosion untuk setiap tile (CSS-based effect)
+        bomb.domExplosions = [];
+        const container = document.querySelector('.game');
+        if (container) {
+            // compute canvas offset inside container to align explosions exactly on canvas grid
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const offsetLeft = canvasRect.left - containerRect.left;
+            const offsetTop = canvasRect.top - containerRect.top;
+
+            for (let cell of bomb.explosions) {
+                const el = document.createElement('div');
+                el.className = 'explosion';
+                // position relative to the canvas inside .game
+                el.style.left = (offsetLeft + cell.col * grid) + 'px';
+                el.style.top = (offsetTop + cell.row * grid) + 'px';
+                el.style.width = grid + 'px';
+                el.style.height = grid + 'px';
+
+                // add arms to visually create a '+' shape
+                for (let a = 0; a < 4; a++) {
+                    const arm = document.createElement('div');
+                    arm.className = 'explosion arm';
+                    arm.style.position = 'absolute';
+                    arm.style.pointerEvents = 'none';
+                    arm.style.background = 'transparent';
+                    if (a === 0) { // up
+                        arm.style.width = (grid * 0.25) + 'px';
+                        arm.style.height = (grid * 0.6) + 'px';
+                        arm.style.left = (grid * 0.375) + 'px';
+                        arm.style.top = '-' + (grid * 0.6) + 'px';
+                    } else if (a === 1) { // down
+                        arm.style.width = (grid * 0.25) + 'px';
+                        arm.style.height = (grid * 0.6) + 'px';
+                        arm.style.left = (grid * 0.375) + 'px';
+                        arm.style.top = (grid) + 'px';
+                    } else if (a === 2) { // left
+                        arm.style.width = (grid * 0.6) + 'px';
+                        arm.style.height = (grid * 0.25) + 'px';
+                        arm.style.left = '-' + (grid * 0.6) + 'px';
+                        arm.style.top = (grid * 0.375) + 'px';
+                    } else { // right
+                        arm.style.width = (grid * 0.6) + 'px';
+                        arm.style.height = (grid * 0.25) + 'px';
+                        arm.style.left = (grid) + 'px';
+                        arm.style.top = (grid * 0.375) + 'px';
+                    }
+                    el.appendChild(arm);
+                }
+                container.appendChild(el);
+                bomb.domExplosions.push(el);
+            }
         }
     }
 
@@ -499,6 +767,9 @@
         drawDog();
         drawBomb();
         updateBomb();
+
+        // Update dogs with approximate frame delta (16ms per frame)
+        updateDogs(16);
 
         player.render();
 

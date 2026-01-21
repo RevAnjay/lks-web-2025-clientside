@@ -120,9 +120,67 @@ button:hover {
 }
 
 .game {
-     display: none;
+    display: none;
+    position: relative; /* container for CSS explosion elements */
 }
 
 .game.playing {
     display: flex;
 }
+
+/* Explosion CSS effect (plus-shaped effect created by overlapping squares) */
+.explosion {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    pointer-events: none;
+    transform-origin: center center;
+    animation: explode 600ms cubic-bezier(.2,.9,.2,1) forwards;
+    z-index: 50;
+}
+
+/* visual for explosion: radial glow */
+.explosion::before {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    border-radius: 8px;
+    background: radial-gradient(circle at 40% 30%, rgba(255,230,120,0.95), rgba(255,120,0,0.85) 40%, rgba(200,40,0,0.6) 70%);
+}
+
+@keyframes explode {
+    0% { transform: scale(0.2); opacity: 1; }
+    60% { transform: scale(1.05); opacity: 0.95; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* Plus-arm pieces (overlaid to create +) */
+.explosion.arm {
+    background: transparent;
+}
+
+/* Game over overlay */
+.game-over {
+    position: fixed;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    left: 0;
+    top: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+}
+.game-over.show {
+    display: flex;
+}
+.game-over .box {
+    background: #111;
+    color: white;
+    padding: 24px;
+    border-radius: 8px;
+    text-align: center;
+}
+.game-over .box h1 { margin: 0 0 12px 0 }
+.game-over .box button { margin: 6px }
