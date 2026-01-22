@@ -1347,11 +1347,11 @@
         playerBomb(e)      // Handle naro bom
 
         // Handle pause/unpause dengan tombol Escape
-        if (e.key == "Escape" && isPaused && isGameRunning) {
+        if (e.key == "Escape" && isPaused && isGameRunning && leaderboardShown == false) {
             // Unpause game
             isPaused = false;
             pauseMenu.classList.remove("show");
-        } else if(e.key == "Escape" && !isPaused && isGameRunning) {
+        } else if(e.key == "Escape" && !isPaused && isGameRunning && leaderboardShown == false) {
             // Pause game
             isPaused = true;
             pauseMenu.classList.add("show")
