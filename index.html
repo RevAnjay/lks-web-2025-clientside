@@ -47,9 +47,10 @@
         <div class="box">
             <h1>Game Over</h1>
             <p id="final-score">Kamu kalah!</p>
+            <div class="entries-game-over"></div>
             <div>
-                <button id="go-restart">Restart</button>
-                <button id="go-main">Main Menu</button>
+                <button id="save-score">Save Score</button>
+                <button id="go-leaderboard">Leaderboard</button>
             </div>
         </div>
     </div>
@@ -59,6 +60,18 @@
         <div class="actions">
             <button id="lb-restart">Restart</button>
             <button id="lb-main">Main Menu</button>
+        </div>
+    </div>
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-content">
+            <h2>Memulai Game</h2>
+            <div class="countdown" id="countdown">3</div>
+        </div>
+    </div>
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-content">
+            <h2>Memulai Game</h2>
+            <div class="countdown" id="countdown">3</div>
         </div>
     </div>
     <div class="game">
@@ -97,10 +110,17 @@
     const usernameInput = document.getElementById("username");
     // Dropdown untuk pilih level (easy, medium, hard)
     const levelSection = document.getElementById("level");
+    // Loading screen element
+    const loadingScreen = document.getElementById('loading-screen');
+    const countdownDisplay = document.getElementById('countdown');
     // Tombol keluar/stop game
     const buttonStopGame = document.getElementById("stop-game");
     // Tombol lanjut/continue game setelah pause
     const buttonContinueGame = document.getElementById("continue-game");
+    // Tombol simpan skor di layar game over
+    const saveScoreButton = document.getElementById("save-score");
+    // Tombol buka leaderboard di layar game over
+    const goLeaderboardButton = document.getElementById("go-leaderboard");
     // Ukuran 1 tile/grid dalam pixel (64x64)
     const grid = 64;
     // Jumlah baris di map (9 baris)
@@ -218,7 +238,17 @@
         render() {
             // Gambar karakter pemain
             if (this.currentImage.complete) {
+                // Jika player sedang invincible, buat efek kelap-kelip
+                if (playerInvincible) {
+                    // Hitung waktu elapsed sejak invincibility mulai
+                    const elapsed = Date.now() - invincibilityStartTime;
+                    // Buat blinking effect dengan opacity berubah (kelap-kelip 5x per detik)
+                    const blink = Math.floor((elapsed / 200) % 2) === 0;  // Toggle setiap 200ms
+                    ctx.globalAlpha = blink ? 1 : 0.4;  // Opacity 1 atau 0.4 (transparan setengah)
+                }
+                
                 ctx.drawImage(this.currentImage, this.col * grid, this.row * grid, grid, grid);
+                ctx.globalAlpha = 1;  // Reset globalAlpha ke normal
             }
         }
     }
@@ -516,6 +546,10 @@
     // Array berisi semua item yang jatuh dari tembok hancur
     // Setiap item punya struktur: {row, col, type}
     let items = [];
+    // Variable untuk tracking invincibility state setelah terkena damage
+    let playerInvincible = false;  // Apakah player sedang invincible
+    let invincibilityStartTime = 0;  // Waktu mulai invincibility
+    const INVINCIBILITY_DURATION = 3000;  // Durasi invincibility 3 detik
 
     // Fungsi ini buat nampilin semua musuh (anjing) di tempat spawn mereka
     // Dia ngiterasi map dan cari semua posisi spawn (nilai 4), trus bikin object musuh
@@ -617,8 +651,14 @@
                 
                 // Cek apakah musuh ketemu pemain
                 if (d.row === player.row && d.col === player.col) {
-                    player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
-                    if (player.health <= 0) showGameOver();
+                    // Hanya kurangi nyawa kalo player tidak invincible
+                    if (!playerInvincible) {
+                        player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
+                        // Aktifkan invincibility dan blink effect
+                        playerInvincible = true;
+                        invincibilityStartTime = Date.now();
+                        if (player.health <= 0) showGameOver();
+                    }
                 }
             } else {
                 // Kalo ga ada path, musuh jalan acak ke salah satu arah
@@ -793,6 +833,28 @@
             }
         }
     }
+
+    function saveScoreButtonFunction() {
+        const username = usernameInput.value || 'Anonymous';
+        const remaining = Math.max(0, gameTime - timer);  // Sisa waktu
+        const scoreVal = remaining + (player.health || 0) * 10;  // Skor = sisa waktu + nyawa*10
+
+        // Buat entry skor baru
+        const entry = { 
+            name: username,                              // Nama pemain
+            score: scoreVal,                             // Total skor
+            timeLeft: remaining,                         // Waktu sisa
+            health: player.health,                       // Nyawa sisa
+            date: new Date().toISOString()              // Tanggal/waktu
+        };
+        
+        // Ambil leaderboard dari localStorage
+        let list = JSON.parse(localStorage.getItem('bomberLeaderboard') || '[]');
+        list.push(entry);
+        // Simpan kembali ke localStorage
+        localStorage.setItem('bomberLeaderboard', JSON.stringify(list));
+        renderLeaderboard();
+    }
     
     // Fungsi ini jalanin timer game selama 120 detik
     // Timer hanya jalan kalo game lagi tidak pause
@@ -858,12 +920,32 @@
     // Fungsi ini tampilkan layar game over kalo pemain kehilangan semua nyawa
     // Pause game dan munculkan modal game over
     function showGameOver() {
+        playerInvincible = false;  // Reset invincibility saat game over
         isPaused = true;
         isGameOver = true;
+        const username = usernameInput.value || 'Anonymous';
+        const remaining = Math.max(0, gameTime - timer);  // Sisa waktu
+        const scoreVal = remaining + (player.health || 0) * 10;  // Skor = sisa waktu + nyawa*10
+        const container = document.querySelector('.entries-game-over');
+
+        // Buat entry skor baru
+        const entry = { 
+            name: username,                              // Nama pemain
+            score: scoreVal,                             // Total skor
+            timeLeft: remaining,                         // Waktu sisa
+            health: player.health,                       // Nyawa sisa
+            date: new Date().toISOString()              // Tanggal/waktu
+        };
+
         if (gameOverEl) {
             const finalScore = document.getElementById('final-score');
             if (finalScore) finalScore.textContent = 'Hati habis!';
             gameOverEl.classList.add('show');
+
+            const div = document.createElement('div');
+            div.className = 'entry-game-over';
+            div.textContent = `1. ${entry.name} — ${entry.score} (timeLeft:${entry.timeLeft}, hp:${entry.health})`;
+            container.appendChild(div);
         }
     }
 
@@ -917,6 +999,21 @@
         renderLeaderboard();
         const lb = document.getElementById('leaderboard');
         if (lb) lb.classList.add('show');
+    }
+
+    // Event listener untuk tombol simpan skor di layar game over
+    if (saveScoreButton) {
+        saveScoreButton.addEventListener('click', () => {
+            saveScoreButtonFunction();
+            alert('Skor disimpan ke leaderboard!');
+        });
+    }
+
+    // Event listener untuk tombol go leaderboard
+    if (goLeaderboardButton) {
+        goLeaderboardButton.addEventListener('click', () => {
+            showLeaderboard();
+        });
     }
 
     // Event listener tombol "Restart" di layar game over
@@ -995,39 +1092,55 @@
             return;
         }
         
+        // Validate level selection
+        if (!levelSection.value) {
+            alert("Pilih level terlebih dahulu");
+            return;
+        }
+        
         // Tentukan level yang dipilih dan generate map sesuai level
+        let selectedMap;
         switch(levelSection.value) {
             case ("easy"):
-                // Generate peta level easy (paling mudah)
-                map = generateRandomEasyMap();
-                // Sembunyikan menu instruksi dan main menu
-                instructionMenu.classList.remove("show");
-                mainMenu.classList.add("hide");
-                // Tampilkan area game
-                gameMenu.classList.add("playing");
-                gameLoad();  // Start game
-                return;
+                selectedMap = generateRandomEasyMap();
+                break;
             case ("medium"):
-                // Generate peta level medium (sedang)
-                map = generateRandomNormalMap();
-                instructionMenu.classList.remove("show");
-                mainMenu.classList.add("hide");
-                gameMenu.classList.add("playing");
-                gameLoad();
-                return;
+                selectedMap = generateRandomNormalMap();
+                break;
             case ("hard"):
-                // Generate peta level hard (paling sulit)
-                // Buat random map baru setiap kali main
-                map = generateRandomHardMap();
-                instructionMenu.classList.remove("show");
-                mainMenu.classList.add("hide");
-                gameMenu.classList.add("playing");
-                gameLoad();
-                return;
+                selectedMap = generateRandomHardMap();
+                break;
             default:
                 alert("level belum tersedia");
                 return;
         }
+        
+        // Tampilkan loading screen dengan countdown
+        loadingScreen.classList.add("show");
+        instructionMenu.classList.remove("show");
+        mainMenu.classList.add("hide");
+        
+        // Countdown: 3 -> 2 -> 1 -> Game Start
+        let count = 3;
+        countdownDisplay.textContent = count;
+        
+        const countdownInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownDisplay.textContent = count;
+                countdownDisplay.style.animation = 'none';
+                setTimeout(() => {
+                    countdownDisplay.style.animation = 'countdown-pop 1s ease-out forwards';
+                }, 10);
+            } else {
+                clearInterval(countdownInterval);
+                // Mulai game
+                map = selectedMap;
+                gameMenu.classList.add("playing");
+                loadingScreen.classList.remove("show");
+                gameLoad();  // Start game
+            }
+        }, 1000);
     })
 
 
@@ -1096,12 +1209,12 @@
                     // Item hati: tambah nyawa (max 3)
                     player.health = Math.min(3, (player.health || 0) - 1);
                 } else if (it.type === 'ice') {
-                    // Item ice: perlambat musuh selama 5 detik (double speed)
+                    // Item ice: perlambat musuh selama 5 detik
                     iceEffect = true;
 
                     setTimeout(() => {
                         // Setelah 5 detik, kembalikan kecepatan musuh ke normal
-                        iceEffect == false;
+                        iceEffect = false;
                     }, 5000);
                 } else if (it.type === 'tnt') {
                     // Item TNT: tambah ukuran ledakan bom (max 5)
@@ -1208,8 +1321,14 @@
         let playerHit = false;
         for (let cell of bomb.explosions) {
             if (player.row === cell.row && player.col === cell.col) {
-                player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
-                playerHit = true;
+                // Hanya damage kalo player tidak invincible
+                if (!playerInvincible) {
+                    player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
+                    // Aktifkan invincibility dan blink effect
+                    playerInvincible = true;
+                    invincibilityStartTime = Date.now();
+                    playerHit = true;
+                }
             }
         }
 
@@ -1298,6 +1417,14 @@
     function gameLoop () {
         // Clear canvas (hapus gambar frame sebelumnya)
         ctx.clearRect(0, 0, 1000, 600);
+        
+        // Update invincibility status: cek apakah sudah 3 detik
+        if (playerInvincible) {
+            const elapsed = Date.now() - invincibilityStartTime;
+            if (elapsed > INVINCIBILITY_DURATION) {
+                playerInvincible = false;  // Invincibility selesai
+            }
+        }
         
         // Gambar background/latar peta
         if (bgImage.complete) {

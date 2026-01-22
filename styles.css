@@ -120,6 +120,62 @@ button:hover {
     background-color: red;
 }
 
+/* Loading Screen dengan Countdown */
+.loading-screen {
+    position: fixed;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    left: 0;
+    top: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 5000;
+}
+
+.loading-screen.show {
+    display: flex;
+}
+
+.loading-content {
+    text-align: center;
+    color: white;
+}
+
+.loading-content h2 {
+    font-size: 2.5em;
+    margin: 0 0 50px 0;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+}
+
+/* Countdown Number Animation */
+.countdown {
+    font-size: 8em;
+    font-weight: bold;
+    color: #ff0000;
+    margin: 0;
+    animation: countdown-pop 1s ease-out forwards;
+    font-family: 'Arial Black', sans-serif;
+    text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+}
+
+@keyframes countdown-pop {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    70% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
 .game {
     display: none;
     position: relative; /* container for CSS explosion elements */
@@ -207,3 +263,5 @@ button:hover {
         .leaderboard .entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .leaderboard .actions { text-align: right; margin-top: 12px; }
         .leaderboard button { margin-left: 8px; }
+
+.entries-game-over { margin: 8px 0 12px 0; }
