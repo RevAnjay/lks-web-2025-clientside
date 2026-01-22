@@ -21,6 +21,7 @@
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
             </select>
+            <input type="checkbox" id="cheat-unlimited">Unlimited Health</input>
             <div>
                 <button id="play">Play</button>
                 <button id="open-instruction">Instruction</button>
@@ -121,6 +122,8 @@
     const saveScoreButton = document.getElementById("save-score");
     // Tombol buka leaderboard di layar game over
     const goLeaderboardButton = document.getElementById("go-leaderboard");
+    // Tombol cheat health
+    const cheatHealthButton = document.getElementById("cheat-unlimited");
     // Ukuran 1 tile/grid dalam pixel (64x64)
     const grid = 64;
     // Jumlah baris di map (9 baris)
@@ -160,6 +163,12 @@
     let isGameOver = false;
     // Untuk ice effect
     let iceEffect = false;
+    let iceEffectStartTime = 0;  // Waktu mulai ice effect
+    const ICE_EFFECT_DURATION = 5000;  // Durasi ice effect 5 detik
+    // Untuk tnt effect
+    let tntEffect = false;
+    // Untuk heart effect
+    let heartEffect= false;
 
     // Gambar-gambar yang dipakai game
     // Gambar pemain menghadap ke bawah
@@ -248,6 +257,22 @@
                 }
                 
                 ctx.drawImage(this.currentImage, this.col * grid, this.row * grid, grid, grid);
+                
+                // Gambar ice effect di atas player kalo sedang under ice effect
+                if (iceEffect && iceImage.complete) {
+                    ctx.globalAlpha = 0.6;  // Set opacity 60% untuk ice image (transparan setengahnya)
+                    ctx.drawImage(iceImage, this.col * grid, this.row * grid, grid, grid);
+                    ctx.globalAlpha = 1;  // Reset globalAlpha ke normal
+                } else if (tntEffect && tntImage.complete) {
+                    ctx.globalAlpha = 0.8;  // Set opacity 60% untuk tnt image (transparan setengahnya)
+                    ctx.drawImage(tntImage, this.col * grid, this.row * grid, grid*0.5, grid*0.5);
+                    ctx.globalAlpha = 1;  // Reset globalAlpha ke normal
+                } else if (heartEffect && heartImage.complete) {
+                    ctx.globalAlpha = 0.8;  // Set opacity 60% untuk heart image (transparan setengahnya)
+                    ctx.drawImage(heartImage, this.col * grid, this.row * grid, grid*0.5, grid*0.5);
+                    ctx.globalAlpha = 1;  // Reset globalAlpha ke normal
+                };
+                
                 ctx.globalAlpha = 1;  // Reset globalAlpha ke normal
             }
         }
@@ -816,6 +841,8 @@
             return "❤❤";
         } else if (player.health == 1) {
             return "❤";
+        } else if ( player.health = 999999999) {
+            return "Unlimited Health";
         } else {
             return "Game Over";
         }
@@ -1036,6 +1063,12 @@
         });
     }
 
+    if (cheatHealthButton) {
+        cheatHealthButton.addEventListener('click', () => {
+            player.health = 999999999;
+        });
+    }
+
     // Event listener tombol leaderboard
     const lbRestart = document.getElementById('lb-restart');  // Tombol restart di leaderboard
     const lbMain = document.getElementById('lb-main');         // Tombol main menu di leaderboard
@@ -1208,21 +1241,30 @@
                 if (it.type === 'heart') {
                     // Item hati: tambah nyawa (max 3)
                     player.health = Math.min(3, (player.health || 0) - 1);
+                    heartEffect = true;
+
+                    setTimeout(() => {
+                        // Efek item hati hanya bertahan 5 detik
+                        heartEffect = false;
+                    }, 5000);
                 } else if (it.type === 'ice') {
                     // Item ice: perlambat musuh selama 5 detik
                     iceEffect = true;
-
+                    iceEffectStartTime = Date.now();  // Set waktu mulai ice effect
+                    
                     setTimeout(() => {
                         // Setelah 5 detik, kembalikan kecepatan musuh ke normal
                         iceEffect = false;
-                    }, 5000);
+                    }, ICE_EFFECT_DURATION);
                 } else if (it.type === 'tnt') {
                     // Item TNT: tambah ukuran ledakan bom (max 5)
                     player.bombSize = Math.min(5, (player.bombSize || 1) + 1);
+                    tntEffect = true;
 
                     setTimeout(() => {
                         // Efek item TNT hanya bertahan 15 detik
                         player.bombSize = Math.max(2, (player.bombSize || 1) - 1);
+                        tntEffect = false;
                     }, 5000);
                 }
             }
