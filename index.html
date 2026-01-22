@@ -59,7 +59,7 @@
         <h2>Leaderboard</h2>
         <div class="entries"></div>
         <div class="actions">
-            <button id="lb-restart">Restart</button>
+            <button id="go-restart">Restart</button>
             <button id="lb-main">Main Menu</button>
         </div>
     </div>
@@ -1077,7 +1077,12 @@
     // Event listener tombol "Restart" di layar game over
     if (goRestart) {
         goRestart.addEventListener('click', () => {
-            // Reset game state terlebih dahulu
+            // Tutup game over screen terlebih dahulu
+            gameOverEl.classList.remove('show');
+            const lb = document.getElementById('leaderboard');
+            if (lb) lb.classList.remove('show');
+            
+            // Reset game state
             resetGameState();
             
             // Gunakan map yang sama seperti game sebelumnya (jangan generate baru)
@@ -1139,14 +1144,8 @@
     // }
 
     // Event listener tombol leaderboard
-    const lbRestart = document.getElementById('lb-restart');  // Tombol restart di leaderboard
     const lbMain = document.getElementById('lb-main');         // Tombol main menu di leaderboard
-    
-    if (lbRestart) {
-        lbRestart.addEventListener('click', () => {
-            location.reload();
-        });
-    }
+
     if (lbMain) {
         lbMain.addEventListener('click', () => {
             // Tutup leaderboard dan kembali ke main menu
