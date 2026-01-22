@@ -169,6 +169,10 @@
     let tntEffect = false;
     // Untuk heart effect
     let heartEffect= false;
+    // Is Cheat
+    let IsCheat = false;
+    // Game time
+    gameTime = 10;  // Total waktu game
 
     // Gambar-gambar yang dipakai game
     // Gambar pemain menghadap ke bawah
@@ -841,7 +845,7 @@
             return "❤❤";
         } else if (player.health == 1) {
             return "❤";
-        } else if ( player.health = 999999999) {
+        } else if ( player.health = 999999999 || IsCheat) {
             return "Unlimited Health";
         } else {
             return "Game Over";
@@ -886,20 +890,19 @@
     // Fungsi ini jalanin timer game selama 120 detik
     // Timer hanya jalan kalo game lagi tidak pause
     // Kalo timer habis, game bakal reload (game over)
+    let timerInterval = null;  // Variable untuk menyimpan interval ID
     function startTimer() {
-        gameTime = 120;  // Total waktu game
 
-        setInterval(() => {
+        timerInterval = setInterval(() => {
             // Increment timer hanya kalo game lagi jalan (tidak pause)
-            if (!isPaused) {
+            if (!isPaused && !isGameOver) {
                 timer++
             }
 
             // Cek apakah waktu sudah habis
-            if (timer >= gameTime) {
-                clearInterval();
-                console.log(timer)
-                location.reload();  // Reload page (reset game)
+            if (timer >= gameTime && !isGameOver) {
+                clearInterval(timerInterval);  // Stop timer dengan parameter yang benar
+                showGameOver();  // Tampilkan game over screen
             }
         }, 1000)  // Jalankan setiap 1 detik
     }
@@ -1066,8 +1069,15 @@
     if (cheatHealthButton) {
         cheatHealthButton.addEventListener('click', () => {
             player.health = 999999999;
+            IsCheat = true;
+            alert("Cheat activated: Unlimited Health!");
         });
     }
+
+    // if (timer = false) {
+    //     timer = false;
+    //     showGameOver();
+    // }
 
     // Event listener tombol leaderboard
     const lbRestart = document.getElementById('lb-restart');  // Tombol restart di leaderboard
@@ -1239,8 +1249,10 @@
                 
                 // Handle sesuai tipe item
                 if (it.type === 'heart') {
-                    // Item hati: tambah nyawa (max 3)
-                    player.health = Math.min(3, (player.health || 0) - 1);
+                    if (!IsCheat) {
+                        // Item hati: kurangi nyawa (max 3)
+                        player.health = Math.min(3, (player.health || 0) - 1);
+                    };  // Kalo cheat aktif, ga usah ngurangin nyawa
                     heartEffect = true;
 
                     setTimeout(() => {
@@ -1249,7 +1261,9 @@
                     }, 5000);
                 } else if (it.type === 'ice') {
                     // Item ice: perlambat musuh selama 5 detik
-                    iceEffect = true;
+                    if (!IsCheat) {
+                        iceEffect = true;
+                    }
                     iceEffectStartTime = Date.now();  // Set waktu mulai ice effect
                     
                     setTimeout(() => {
