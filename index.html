@@ -147,6 +147,10 @@
     ];
     // Peta game yang sedang dipakai (bisa berubah sesuai level)
     let map = mainMap;
+    // Variable untuk simpan map yang sedang dipakai (buat restart pakai map yang sama)
+    let currentMap = mainMap;
+    // Variable untuk simpan level yang sedang dipakai (buat restart)
+    let currentLevel = 'easy';
     // Total waktu game dalam detik (120 detik = 2 menit)
     let gameTime = 120;
     // Timer yang terhitung saat game berlangsung (dalam detik)
@@ -171,8 +175,6 @@
     let heartEffect= false;
     // Is Cheat
     let IsCheat = false;
-    // Game time
-    gameTime = 10;  // Total waktu game
 
     // Gambar-gambar yang dipakai game
     // Gambar pemain menghadap ke bawah
@@ -839,14 +841,14 @@
     // Fungsi ini bikin tampilan hati di UI sesuai dengan nyawa pemain
     // Balikin string dengan jumlah hati sesuai health pemain
     function calcHealth() {
-        if (player.health == 3) {
+        if (IsCheat == true) {
+            return "❤ Unlimited Health!";
+        } else if (player.health == 3) {
             return "❤❤❤";
         } else if (player.health == 2) {
             return "❤❤";
         } else if (player.health == 1) {
             return "❤";
-        } else if ( player.health = 999999999 || IsCheat) {
-            return "Unlimited Health";
         } else {
             return "Game Over";
         }
@@ -945,6 +947,32 @@
         startTimer();
         spawnDogs();
         gameLoop();
+    }
+
+    // Fungsi ini reset game state buat restart atau main menu
+    function resetGameState() {
+        // Reset semua variable game ke default
+        isPaused = null;
+        isGameOver = false;
+        isGameRunning = false;
+        leaderboardShown = false;
+        iceEffect = false;
+        tntEffect = false;
+        heartEffect = false;
+        playerInvincible = false;
+        bombs = [];
+        dogs = [];
+        items = [];
+        timer = 0;
+        brick = 0;
+        IsCheat = false;
+        // Reset player ke posisi awal
+        player.row = 1;
+        player.col = 1;
+        player.health = 3;
+        player.bombSize = 1;
+        // Clear interval timer kalo masih jalan
+        if (timerInterval) clearInterval(timerInterval);
     }
 
     // Fungsi ini tampilkan layar game over kalo pemain kehilangan semua nyawa
@@ -1049,7 +1077,38 @@
     // Event listener tombol "Restart" di layar game over
     if (goRestart) {
         goRestart.addEventListener('click', () => {
-            location.reload();
+            // Reset game state terlebih dahulu
+            resetGameState();
+            
+            // Gunakan map yang sama seperti game sebelumnya (jangan generate baru)
+            let selectedMap = currentMap;  // Pakai map yang sudah tersimpan
+            
+            // Tampilkan loading screen dengan countdown
+            loadingScreen.classList.add("show");
+            instructionMenu.classList.remove("show");
+            mainMenu.classList.add("hide");
+            
+            // Countdown: 3 -> 2 -> 1 -> Game Start
+            let count = 3;
+            countdownDisplay.textContent = count;
+            
+            const countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownDisplay.textContent = count;
+                    countdownDisplay.style.animation = 'none';
+                    setTimeout(() => {
+                        countdownDisplay.style.animation = 'countdown-pop 1s ease-out forwards';
+                    }, 10);
+                } else {
+                    clearInterval(countdownInterval);
+                    // Mulai game
+                    map = selectedMap;
+                    gameMenu.classList.add("playing");
+                    loadingScreen.classList.remove("show");
+                    gameLoad();  // Start game
+                }
+            }, 1000);
         });
     }
 
@@ -1143,6 +1202,7 @@
         
         // Tentukan level yang dipilih dan generate map sesuai level
         let selectedMap;
+        const selectedLevel = levelSection.value;  // Simpan level yang dipilih
         switch(levelSection.value) {
             case ("easy"):
                 selectedMap = generateRandomEasyMap();
@@ -1157,6 +1217,10 @@
                 alert("level belum tersedia");
                 return;
         }
+        
+        // Simpan map dan level untuk bisa di-reuse saat restart
+        currentMap = selectedMap;
+        currentLevel = selectedLevel;
         
         // Tampilkan loading screen dengan countdown
         loadingScreen.classList.add("show");
@@ -1280,6 +1344,11 @@
                         player.bombSize = Math.max(2, (player.bombSize || 1) - 1);
                         tntEffect = false;
                     }, 5000);
+                }
+                
+                // Check apakah nyawa pemain sudah habis setelah pickup item
+                if (player.health <= 0) {
+                    showGameOver();
                 }
             }
         }
