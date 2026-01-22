@@ -1,0 +1,1273 @@
+// Ambil elemen canvas dari HTML buat tempat gambar game
+    const canvas = document.getElementById('canvas');
+    // Context canvas buat menggambar (2D drawing)
+    const ctx = canvas.getContext("2d");
+    // Elemen div untuk layar game over
+    const gameOverEl = document.getElementById('game-over');
+    // Tombol restart di layar game over
+    const goRestart = document.getElementById('go-restart');
+    // Tombol main menu di layar game over
+    const goMain = document.getElementById('go-main');
+    // Tombol X untuk tutup menu instruksi
+    const closeButtonInstruction = document.getElementById('close-button-instruction');
+    // Tombol X untuk tutup menu pause
+    const closeButtonPause = document.getElementById('close-button-pause');
+    // Tombol buka menu instruksi
+    const openButton = document.getElementById('open-instruction');
+    // Menu utama (main menu)
+    const mainMenu = document.querySelector(".main-menu");
+    // Menu instruksi cara bermain
+    const instructionMenu = document.querySelector(".instruction");
+    // Menu pause (jeda game)
+    const pauseMenu = document.querySelector(".pause-game");
+    // Tombol play untuk mulai game
+    const playButton = document.getElementById("play");
+    // Elemen div untuk area game
+    const gameMenu = document.querySelector(".game");
+    // Input field buat username pemain
+    const usernameInput = document.getElementById("username");
+    // Dropdown untuk pilih level (easy, medium, hard)
+    const levelSection = document.getElementById("level");
+    // Tombol keluar/stop game
+    const buttonStopGame = document.getElementById("stop-game");
+    // Tombol lanjut/continue game setelah pause
+    const buttonContinueGame = document.getElementById("continue-game");
+    // Ukuran 1 tile/grid dalam pixel (64x64)
+    const grid = 64;
+    // Jumlah baris di map (9 baris)
+    const numRows = 9;
+    // Jumlah kolom di map (11 kolom)
+    const numCols = 11;
+    // Peta awal permainan
+    // 0 = ruang kosong (bisa jalan)
+    // 1 = tembok keras (tidak bisa hancur)
+    // 2 = tembok lunak (bisa dihancurin bom)
+    const mainMap = [   
+        [1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,2,0,2,0,0,0,1],
+        [1,0,1,0,1,0,1,2,1,2,1],
+        [1,0,0,0,2,0,0,0,0,0,1],
+        [1,2,1,0,1,0,1,2,1,0,1],
+        [1,0,2,0,2,0,2,0,0,2,1],
+        [1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1]
+    ];
+    // Peta game yang sedang dipakai (bisa berubah sesuai level)
+    let map = mainMap;
+    // Total waktu game dalam detik (120 detik = 2 menit)
+    let gameTime = 120;
+    // Timer yang terhitung saat game berlangsung (dalam detik)
+    let timer = 0;
+    // Status game: null = sedang jalan, true = pause, false = unpause
+    let isPaused = null;    
+    // Counter untuk menghitung jumlah tembok lunak yang masih ada
+    let brick = 0;
+    // Array untuk menyimpan semua bom yang aktif di game
+    let bombs = []
+
+    // Gambar-gambar yang dipakai game
+    // Gambar pemain menghadap ke bawah
+    const playerDImage = new Image();
+    playerDImage.src = "Images/char_down.png"
+
+    // Gambar pemain menghadap ke kiri
+    const playerLImage = new Image();
+    playerLImage.src = "Images/char_left.png"
+
+    // Gambar pemain menghadap ke kanan
+    const playerRImage = new Image();
+    playerRImage.src = "Images/char_right.png"
+
+    // Gambar pemain menghadap ke atas
+    const playerUImage = new Image();
+    playerUImage.src = "Images/char_up.png"
+
+    // Gambar background/latar belakang peta
+    const bgImage = new Image();
+    bgImage.src = "Images/background.jpg"
+
+    // Gambar tembok lunak (tidak bisa dihancurin)
+    const softWall = new Image();
+    softWall.src = "Images/wall.png"
+
+    // Gambar tembok retak (mungkin buat efek khusus)
+    const crackWall = new Image();
+    crackWall.src = "Images/wall_crack.png"
+
+    // Gambar musuh (anjing) menghadap ke atas
+    const dogUImage = new Image();
+    dogUImage.src = "Images/dog_up.png"
+
+    // Gambar musuh (anjing) menghadap ke bawah
+    const dogDImage = new Image();
+    dogDImage.src = "Images/dog_down.png"
+
+    // Gambar musuh (anjing) menghadap ke kiri
+    const dogLImage = new Image();
+    dogLImage.src = "Images/dog_left.png"
+
+    // Gambar musuh (anjing) menghadap ke kanan
+    const dogRImage = new Image();
+    dogRImage.src = "Images/dog_right.png"
+
+    // Gambar bom
+    const bombImage = new Image();
+    bombImage.src = "Images/bomb.png"
+
+    // Gambar efek ledakan
+    const explosionImage = new Image();
+    explosionImage.src = "Images/explosion.png"
+    // Gambar item hati (tambah nyawa)
+    const heartImage = new Image();
+    heartImage.src = "Images/heart.png"
+
+    // Gambar item ice (perlambat musuh)
+    const iceImage = new Image();
+    iceImage.src = "Images/ice.png"
+
+    // Gambar item TNT (perbesar ledakan)
+    const tntImage = new Image();
+    tntImage.src = "Images/tnt.png"
+    
+    // Object pemain yang berisi data dan method tentang pemain
+    const player = {
+        row: 1,              // Posisi baris pemain di map
+        col: 1,              // Posisi kolom pemain di map
+        numBombs: 1,         // Jumlah bom yang bisa ditaro (sekarang tidak dipakai)
+        bombSize: 2,         // Ukuran ledakan bom (jarak penyebaran ledakan)
+        radius: grid * 0.35, // Radius collision detection pemain
+        currentImage: playerDImage, // Gambar pemain yang sedang ditampilkan
+        health: 3,           // Nyawa pemain (maksimal 3)
+        // Method untuk menggambar pemain di canvas
+        render() {
+            // Gambar karakter pemain
+            if (this.currentImage.complete) {
+                ctx.drawImage(this.currentImage, this.col * grid, this.row * grid, grid, grid);
+            }
+        }
+    }
+
+    // Ukuran tile dalam pixel (untuk referensi, tidak banyak dipakai)
+    const tileSize = 65;
+
+    // Peta-peta standar yang bisa dipilih (sekarang random map lebih dominan)
+    const randomMap =  {
+        // Peta 1 - Standar
+        map1: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,2,0,2,0,0,4,1],
+            [1,0,1,0,1,0,1,2,1,2,1],
+            [1,0,0,0,2,0,0,0,0,0,1],
+            [1,2,1,0,1,0,1,2,1,0,1],
+            [1,0,2,0,2,0,2,0,0,2,1],
+            [1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+        
+        // Peta 2 - Lebih sulit (banyak tembok)
+        map2: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,2,2,0,2,2,4,0,1],
+            [1,0,1,0,1,0,1,2,1,2,1],
+            [1,0,0,0,2,2,2,0,0,0,1],
+            [1,2,1,2,1,2,1,2,1,0,1],
+            [1,0,2,2,2,2,2,0,0,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,0,0,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+
+        // Peta 3 - Paling sulit (sangat banyak tembok)
+        map3: [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,2,2,2,2,2,4,1],
+            [1,0,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,2,1,2,1,2,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ],
+    }
+
+    // Fungsi ini bikin map random untuk level HARD
+    // Caranya:
+    // - Border luar pasti solid wall (nilai 1)
+    // - Solid wall juga ditaro di posisi grid (r%2==0 && c%2==0) buat bikin labirin
+    // - Sisanya: banyak soft wall (nilai 2), ada ruang kosong (0), dan tempat musuh spawn (4)
+    function generateRandomHardMap() {
+        const m = [];
+        const softProb = 0.60; // Kemungkinan naro soft wall (60% dari ruang kosong)
+        const maxDogs = 3;     // Paling banyak 3 musuh aja di level hard
+
+        // Tahap 1: Bikin base map dengan border dan solid wall yang permanen
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // Border (tepi peta pasti solid wall)
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Naro solid wall di pola checker (seperti bomberman klasik)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Jaga area awal pemain (1,1) dan sekitarnya tetap kosong buat spawn
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // Sel lainnya: mostly soft wall atau kosong sesuai probabilitas
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // Tahap 2: Cari posisi yang cocok buat spawn musuh di "pocket" (area yang terisolasi)
+        // Preferensi: sel yang minimal 3 dari 4 tetangga adalah non-walkable (1 atau 2)
+        // Fallback: bisa juga yang 2 tetangga non-walkable kalo candidate kurang
+        const strict = [];  // List posisi yang ketat (3 tetangga non-walkable)
+        const relaxed = []; // List posisi yang santai (2 tetangga non-walkable)
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]]; // 4 arah tetangga (atas, bawah, kiri, kanan)
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                // Skip sel yang bukan kosong atau soft wall
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                // Jarak Manhattan (Manhattan distance) dari spawn pemain
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                // Skip sel terlalu dekat dengan spawn pemain
+                if (manh < 4) continue;
+
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        const candidates = strict.length ? strict : relaxed;
+        // Acak posisi musuh
+        candidates.sort(() => Math.random() - 0.5);
+        // Ambil paling banyak maxDogs musuh
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4; // 4 = tempat spawn musuh
+        }
+
+        return m;
+    }
+
+    // Fungsi ini bikin map random untuk level MEDIUM
+    // Aturan hampir sama kaya level hard, tapi soft wall lebih dikit dan musuh juga lebih sedikit
+    function generateRandomNormalMap() {
+        const m = [];
+        const softProb = 0.40; // kemungkinan naro soft wall (40% dari ruang kosong)
+        const maxDogs = 2; // paling banyak 2 musuh aja di level medium
+
+        // Tahap 1: Bikin base map dengan border dan solid wall yang permanen
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // Border (tepi peta pasti solid wall)
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Naro solid wall di pola checker (seperti bomberman klasik)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Jaga area awal pemain (1,1) dan sekitarnya tetap kosong buat spawn
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // Sel lainnya: mostly soft wall atau kosong sesuai probabilitas
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // Tahap 2: Cari posisi yang cocok buat spawn musuh di "pocket" (area yang terisolasi)
+        // Preferensi: sel yang minimal 3 dari 4 tetangga adalah non-walkable (1 atau 2)
+        // Fallback: bisa juga yang 2 tetangga non-walkable kalo candidate kurang
+        const strict = [];  // List posisi yang ketat (3 tetangga non-walkable)
+        const relaxed = []; // List posisi yang santai (2 tetangga non-walkable)
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]]; // 4 arah tetangga (atas, bawah, kiri, kanan)
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                // Skip sel yang bukan kosong atau soft wall
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                // Jarak Manhattan (Manhattan distance) dari spawn pemain
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                // Skip sel terlalu dekat dengan spawn pemain
+                if (manh < 4) continue;
+
+                // Hitung berapa banyak tetangga yang tidak bisa jalan (non-walkable)
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                // Masukkan ke list sesuai kategori
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        const candidates = strict.length ? strict : relaxed;
+        // Acak posisi musuh
+        candidates.sort(() => Math.random() - 0.5);
+        // Ambil paling banyak maxDogs musuh
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4;
+        }
+
+        return m;
+    // Fungsi ini bikin map random untuk level EASY
+    // Jauh lebih mudah: soft wall dikit, musuh cuma 1 aja
+    function generateRandomEasyMap() {
+        const m = [];
+        const softProb = 0.20; // kemungkinan naro soft wall (20% dari ruang kosong)
+        const maxDogs = 1; // paling banyak 1 musuh aja di level easy
+
+        // Tahap 1: Bikin base map dengan border dan solid wall yang permanen
+        for (let r = 0; r < numRows; r++) {
+            m[r] = [];
+            for (let c = 0; c < numCols; c++) {
+                // Border (tepi peta pasti solid wall)
+                if (r === 0 || r === numRows - 1 || c === 0 || c === numCols - 1) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Naro solid wall di pola checker (seperti bomberman klasik)
+                if (r % 2 === 0 && c % 2 === 0) {
+                    m[r][c] = 1;
+                    continue;
+                }
+
+                // Jaga area awal pemain (1,1) dan sekitarnya tetap kosong buat spawn
+                if ((r === 1 && c === 1) || (r === 1 && c === 2) || (r === 2 && c === 1)) {
+                     m[r][c] = 0;
+                    continue;
+                }
+
+                // Sel lainnya: mostly soft wall atau kosong sesuai probabilitas
+                m[r][c] = (Math.random() < softProb) ? 2 : 0;
+            }
+        }
+        
+
+        // Tahap 2: Cari posisi yang cocok buat spawn musuh di "pocket" (area yang terisolasi)
+        // Preferensi: sel yang minimal 3 dari 4 tetangga adalah non-walkable (1 atau 2)
+        // Fallback: bisa juga yang 2 tetangga non-walkable kalo candidate kurang
+        const strict = [];  // List posisi yang ketat (3 tetangga non-walkable)
+        const relaxed = []; // List posisi yang santai (2 tetangga non-walkable)
+        const neigh = [[-1,0],[1,0],[0,-1],[0,1]]; // 4 arah tetangga (atas, bawah, kiri, kanan)
+        
+        for (let r = 1; r < numRows - 1; r++) {
+            for (let c = 1; c < numCols - 1; c++) {
+                // Skip sel yang bukan kosong atau soft wall
+                if (m[r][c] !== 0 && m[r][c] !== 2) continue;
+                
+                // Jarak Manhattan (Manhattan distance) dari spawn pemain
+                const manh = Math.abs(r - 1) + Math.abs(c - 1);
+                // Skip sel terlalu dekat dengan spawn pemain
+                if (manh < 4) continue;
+
+                // Hitung berapa banyak tetangga yang tidak bisa jalan (non-walkable)
+                let nonWalk = 0;
+                for (let [dr,dc] of neigh) {
+                    const nr = r + dr, nc = c + dc;
+                    const v = (m[nr] && typeof m[nr][nc] !== 'undefined') ? m[nr][nc] : 1;
+                    if (v === 1 || v === 2) nonWalk++;
+                }
+                // Masukkan ke list sesuai kategori
+                if (nonWalk >= 3) strict.push([r,c]);
+                else if (nonWalk >= 2) relaxed.push([r,c]);
+            }
+        }
+
+        // Pilih dari strict terlebih dahulu, kalo kurang baru ambil dari relaxed
+        const candidates = strict.length ? strict : relaxed;
+        // Acak posisi musuh
+        candidates.sort(() => Math.random() - 0.5);
+        // Ambil paling banyak maxDogs
+        const pick = Math.min(maxDogs, candidates.length);
+        for (let i = 0; i < pick; i++) {
+            const [r, c] = candidates[i];
+            m[r][c] = 4; // 4 = spawn musuh
+        }
+
+        return m;
+    }
+
+    // Object types berisi konstanta nilai map
+    const types = {
+        wall: 1,         // Tembok keras (tidak bisa hancur)
+        softWall: 2,     // Tembok lunak (bisa dihancurin bom)
+        bomb: 3          // Bom (sekarang tidak dipakai)
+    };
+
+    // Array 2D untuk menyimpan grid game (copy dari map)
+    let cells = []
+    // Array berisi semua musuh (anjing) yang sedang aktif di game
+    let dogs = [];
+    // Flag untuk tracking apakah leaderboard sudah di-show (biar ga nge-show 2 kali)
+    let leaderboardShown = false;
+    // Array berisi semua item yang jatuh dari tembok hancur
+    // Setiap item punya struktur: {row, col, type}
+    let items = [];
+
+    // Fungsi ini buat nampilin semua musuh (anjing) di tempat spawn mereka
+    // Dia ngiterasi map dan cari semua posisi spawn (nilai 4), trus bikin object musuh
+    function spawnDogs() {
+        dogs = [];
+        for (let r = 0; r < numRows; r++) {
+            for (let c = 0; c < numCols; c++) {
+                if (map[r][c] === 4) {
+                    // Object musuh punya: posisi row/col, arah (dir), timer buat gerak, interval gerak
+                    dogs.push({ 
+                        row: r,              // Baris posisi musuh
+                        col: c,              // Kolom posisi musuh
+                        dir: 'left',         // Arah musuh sedang menghadap
+                        moveTimer: 0,        // Timer countdown sebelum musuh bergerak
+                        moveInterval: 400    // Interval waktu bergerak musuh (400ms)
+                    });
+                    // Ganti posisi spawn musuh di map menjadi kosong (0) biar tidak ngalangi
+                    map[r][c] = 0;
+                }
+            }
+        }
+    }
+
+    // Fungsi ini pake BFS (Breadth-First Search) buat cari jalan terpendek dari posisi musuh ke pemain
+    // Dia balikin posisi step berikutnya yang harus diambil musuh buat mengejar pemain
+    // Kalo ada tembok (1 atau 2), dia akan ngehindar dan cari jalan lain
+    function findNextStep(sr, sc, tr, tc) {
+        const q = [];  // Queue buat BFS
+        // Array 2D untuk track sel mana aja yang sudah dikunjungin
+        const visited = Array.from({ length: numRows }, () => Array(numCols).fill(false));
+        // Array 2D untuk track sel mana dateng dari mana (buat reconstruct path)
+        const prev = Array.from({ length: numRows }, () => Array(numCols).fill(null));
+        
+        q.push([sr, sc]);
+        visited[sr][sc] = true;
+        // 4 arah: atas, bawah, kiri, kanan
+        const dirs = [ [-1,0],[1,0],[0,-1],[0,1] ];
+
+        // BFS loop
+        while (q.length) {
+            const [r,c] = q.shift();
+            if (r === tr && c === tc) break; // Udah ketemu target
+            
+            // Cek 4 arah tetangga
+            for (let [dr,dc] of dirs) {
+                const nr = r + dr, nc = c + dc;
+                // Cek apakah masih dalam batas map
+                if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;
+                // Skip kalo udah dikunjungin
+                if (visited[nr][nc]) continue;
+                // Skip kalo ada tembok keras (1) atau tembok lunak (2)
+                if (map[nr][nc] === 1 || map[nr][nc] === 2) continue;
+                
+                visited[nr][nc] = true;
+                prev[nr][nc] = [r,c];
+                q.push([nr,nc]);
+            }
+        }
+
+        // Kalo ga ketemu target, return null
+        if (!visited[tr] || !visited[tr][tc]) return null;
+        
+        // Reconstruct path dari target kembali ke source
+        let cur = [tr, tc];
+        const path = [];
+        while (cur && !(cur[0] === sr && cur[1] === sc)) {
+            path.push(cur);
+            cur = prev[cur[0]][cur[1]];
+        }
+        }
+        // Ambil posisi step berikutnya (langkah pertama menuju target)
+        if (path.length === 0) return null;
+        const next = path[path.length - 1];
+        return next; // Return [r,c] (posisi berikutnya)
+    }
+
+    // Fungsi ini update posisi semua musuh setiap frame
+    // Dia gerakin musuh ke arah pemain dengan interval waktu tertentu
+    // Kalo musuh ketemu pemain, pemain bakal kehilangan nyawa (health)
+    function updateDogs(delta) {
+        if (!Array.isArray(dogs)) return;
+        for (let d of dogs) {
+            d.moveTimer -= delta;  // Kurangi timer
+            if (d.moveTimer > 0) continue;  // Belum waktunya bergerak
+            d.moveTimer = d.moveInterval;   // Reset timer
+            
+            // Cari step berikutnya menuju pemain
+            const next = findNextStep(d.row, d.col, player.row, player.col);
+            if (next) {
+                const [nr, nc] = next;
+                // Update arah musuh menghadap kemana
+                if (nr < d.row) d.dir = 'up';           // Baris berkurang = ke atas
+                else if (nr > d.row) d.dir = 'down';     // Baris bertambah = ke bawah
+                else if (nc < d.col) d.dir = 'left';     // Kolom berkurang = ke kiri
+                else if (nc > d.col) d.dir = 'right';    // Kolom bertambah = ke kanan
+
+                d.row = nr; d.col = nc;  // Update posisi musuh
+                
+                // Cek apakah musuh ketemu pemain
+                if (d.row === player.row && d.col === player.col) {
+                    player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
+                    if (player.health <= 0) showGameOver();
+                }
+            } else {
+                // Kalo ga ada path, musuh jalan acak ke salah satu arah
+                const choices = [[-1,0],[1,0],[0,-1],[0,1]];  // 4 arah
+                for (let [dr,dc] of choices) {
+                    const nr = d.row + dr, nc = d.col + dc;
+                    if (nr < 0 || nr >= numRows || nc < 0 || nc >= numCols) continue;  // Cek batas peta
+                    // Jalan ke ruang kosong dengan probabilitas 25%
+                    if (map[nr][nc] === 0 && Math.random() < 0.25) {
+                        d.row = nr; d.col = nc; break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fungsi ini initialize grid dari soft wall di map
+    // Ada 90% kemungkinan setiap ruang kosong bakal berisi soft wall
+    // (Ngambil dari map yang udah jadi, bukan dari map original)
+    function generateLevel() {
+        cells = [];
+
+        for (let i = 0; i < numRows; i++) {
+            cells[i] = [];
+
+            for (let col = 0; col < numCols; col++) {
+                cells[i][col] = map[i][col];
+
+                if (map[i][col] === 0 && Math.random() < 0.90) {
+                    cells[i][col] = types.softWall;
+                }
+            }
+        }
+    }
+
+    // Fungsi ini gambar semua soft wall (tembok lunak) di canvas
+    // Cuma ngambar yang ada di map original (nilai 2), yang lainnya diabaikan
+    function drawMap() {
+        for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+                const x = col * grid;
+                const y = row * grid;
+
+                // Hanya draw jika map[row][col] === 2 (soft wall)
+                if (map[row][col] === 2) {
+                    if (softWall.complete) {
+                        ctx.drawImage(softWall, x, y, grid, grid);
+                    }
+                }
+            }
+        }
+    }
+    // Fungsi ini gambar semua anjing (musuh) di canvas sesuai posisi dan arah mereka
+    // Gambar yang ditampilkan tergantung arah musuh lagi ngadep kemana
+    function drawDog() {
+        if (!Array.isArray(dogs)) return;
+        for (let d of dogs) {
+            // Hitung koordinat X dan Y di canvas dari posisi grid
+            const x = d.col * grid;
+            const y = d.row * grid;
+            // Pilih gambar sesuai arah musuh
+            let img = dogLImage;  // Default ke kiri
+            if (d.dir === 'up') img = dogUImage;
+            else if (d.dir === 'down') img = dogDImage;
+            else if (d.dir === 'left') img = dogLImage;
+            else if (d.dir === 'right') img = dogRImage;
+
+            // Gambar musuh di canvas kalo gambar udah loaded
+            if (img && img.complete) ctx.drawImage(img, x, y, grid, grid);
+        }
+    }
+
+    // Fungsi ini gambar semua bom yang ada di canvas
+    // Kalo bom udah meledak, dia ga akan digambar (dihapus) dari canvas
+    function drawBomb() {
+        for (let bomb of bombs) {
+            // Hitung koordinat X dan Y di canvas dari posisi grid
+            let x = bomb.col * grid;
+            let y = bomb.row * grid;
+            
+            if (bomb.exploded) {
+                // Bom udah meledak, jadi skip canvas drawing (sudah ada efek CSS DOM)
+                continue;
+            } else {
+                try {
+                    // Gambar bom kalo gambar udah loaded
+                    if (bombImage.complete) {
+                        ctx.drawImage(bombImage, x, y, grid, grid);
+                    }
+                } catch (err) {
+                    console.warn('draw bomb failed', err);
+                }
+            }
+        }
+    }
+
+    // Fungsi ini gambar item-item yang jatuh dari soft wall yang hancur
+    // Item ada 3 jenis: heart (nyawa), ice (perlambat musuh), tnt (perbesar ledakan)
+    function drawItems() {
+        if (!Array.isArray(items)) return;
+        for (let it of items) {
+            // Hitung koordinat X dan Y di canvas dari posisi grid
+            const x = it.col * grid;
+            const y = it.row * grid;
+            try {
+                // Gambar item sesuai tipenya, dengan offset dan ukuran 70% dari grid
+                if (it.type === 'heart' && heartImage.complete) 
+                    ctx.drawImage(heartImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+                else if (it.type === 'ice' && iceImage.complete) 
+                    ctx.drawImage(iceImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+                else if (it.type === 'tnt' && tntImage.complete) 
+                    ctx.drawImage(tntImage, x + grid*0.15, y + grid*0.15, grid*0.7, grid*0.7);
+            } catch (err) {
+                console.warn('draw item failed', err);
+            }
+        }
+    }
+
+    // Fungsi ini update status semua bom setiap frame
+    // Ngecek timer bom, kalo udah 0 maka bom meledak
+    // Setelah meledak, hitung waktu efek ledakan, trus hapus kalo udah selesai
+    function updateBomb() {
+        for (let i = bombs.length - 1; i >= 0; i--) {
+            bombs[i].timer -= 16;  // Kurangi timer setiap 16ms (1 frame)
+            console.log(bombs[i].timer);
+
+            // Jika timer selesai dan bom belum meledak -> meledakkan
+            if (bombs[i].timer <= 0 && !bombs[i].exploded) {
+                explodeBomb(bombs[i]);
+                continue;
+            }
+
+            // Jika sudah meledak, hitung explosionTimer untuk menghapus efek
+            if (bombs[i].exploded) {
+                bombs[i].explosionTimer -= 16;
+                if (bombs[i].explosionTimer <= 0) {
+                    // hapus DOM explosion jika ada
+                    if (bombs[i].domExplosions && Array.isArray(bombs[i].domExplosions)) {
+                        for (let el of bombs[i].domExplosions) {
+                            if (el && el.parentNode) el.parentNode.removeChild(el);
+                        }
+                    }
+                    bombs.splice(i, 1);
+                }
+            }
+        }
+    }
+
+    // Fungsi ini bikin tampilan hati di UI sesuai dengan nyawa pemain
+    // Balikin string dengan jumlah hati sesuai health pemain
+    function calcHealth() {
+        if (player.health == 3) {
+            return "❤❤❤";
+        } else if (player.health == 2) {
+            return "❤❤";
+        } else if (player.health == 1) {
+            return "❤";
+        } else {
+            return "Game Over";
+        }
+    }
+
+    // Fungsi ini hitung berapa banyak soft wall yang masih ada di map sekarang
+    // Ini penting buat tau kalo semua tembok udah hancur (game menang)
+    function calcWallCount() {
+        brick = 0;
+        for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < numCols; col++) {
+                if (map[row] && map[row][col] === 2) {
+                    brick++;
+                }
+            }
+        }
+    }
+    
+    // Fungsi ini jalanin timer game selama 120 detik
+    // Timer hanya jalan kalo game lagi tidak pause
+    // Kalo timer habis, game bakal reload (game over)
+    function startTimer() {
+        gameTime = 120;  // Total waktu game
+
+        setInterval(() => {
+            // Increment timer hanya kalo game lagi jalan (tidak pause)
+            if (!isPaused) {
+                timer++
+            }
+
+            // Cek apakah waktu sudah habis
+            if (timer >= gameTime) {
+                clearInterval();
+                console.log(timer)
+                location.reload();  // Reload page (reset game)
+            }
+        }, 1000)  // Jalankan setiap 1 detik
+    }
+
+    // Constructor function untuk object bom (sekarang tidak dipakai sih)
+    // Punya property: posisi (row, col), ukuran ledakan, siapa yang naro
+    function bomb(row, col, size, owner) {
+        this.row = row           // Baris posisi bom
+        this.col = col           // Kolom posisi bom
+        this.size = size         // Ukuran ledakan bom
+        this.owner = owner       // Siapa yang naro bom (sekarang tidak dipakai)
+        this.bombTimer = 3000    // Timer bom (3000ms = 3 detik, sekarang tidak dipakai)
+    }
+
+
+    // Fungsi ini inisialisasi game saat dimulai
+    // Gambar UI di sebelah kanan canvas (status pemain, waktu, nyawa, dll)
+    // Trus hitung berapa tembok, mulai timer, spawn musuh, dan jalanin game loop
+    function gameLoad() {
+        // Gambar panel kanan (info panel) - background solid
+        ctx.fillStyle = "#333";  
+        ctx.fillRect(700, 0, 400, canvas.height);
+
+        // Tulis text status pemain di panel kanan
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText("Player : " + usernameInput.value, 700, 100);  // Nama pemain
+        ctx.fillText("Time   : " + timer, 700, 130);               // Waktu game
+        ctx.fillText(calcHealth(), 700, 180);                       // Nyawa pemain
+        ctx.fillText("Brick = " + brick, 700, 220);                // Jumlah tembok
+        ctx.fillText("Bomb  = 0", 700, 250);                       // Jumlah bom (hardcoded 0)
+
+        ctx.fillText("Ice   = 1", 700, 280);
+        
+        // Hitung jumlah soft wall yang ada di awal game
+        calcWallCount();
+        startTimer();
+        spawnDogs();
+        gameLoop();
+    }
+
+    // Fungsi ini tampilkan layar game over kalo pemain kehilangan semua nyawa
+    // Pause game dan munculkan modal game over
+    function showGameOver() {
+        isPaused = true;
+        if (gameOverEl) {
+            const finalScore = document.getElementById('final-score');
+            if (finalScore) finalScore.textContent = 'Hati habis!';
+            gameOverEl.classList.add('show');
+        }
+    }
+
+    // Fungsi ini tampilkan leaderboard (daftar skor tertinggi) di UI
+    // Ambil data dari localStorage dan render jadi HTML
+    function renderLeaderboard() {
+        const list = JSON.parse(localStorage.getItem('bomberLeaderboard') || '[]');
+        const container = document.querySelector('#leaderboard .entries');
+        if (!container) return;
+        container.innerHTML = '';
+        list.forEach((e, i) => {
+            const div = document.createElement('div');
+            div.className = 'entry';
+            div.textContent = `${i+1}. ${e.name} — ${e.score} (timeLeft:${e.timeLeft}, hp:${e.health})`;
+            container.appendChild(div);
+        });
+    }
+
+    // Fungsi ini nampilin leaderboard pas pemain berhasil hancurin semua tembok
+    // Hitung skor dari waktu sisa + bonus nyawa, simpan ke localStorage, trus tampilkan leaderboard
+    // Skor dihitung dari: waktu yang tersisa + (nyawa sisa × 10 poin)
+    function showLeaderboard() {
+        if (leaderboardShown) return;  // Prevent duplicate leaderboard show
+        leaderboardShown = true;
+        isPaused = true;  // Pause game
+        
+        // Hitung skor
+        const remaining = Math.max(0, gameTime - timer);  // Sisa waktu
+        const scoreVal = remaining + (player.health || 0) * 10;  // Skor = sisa waktu + nyawa*10
+        const username = usernameInput.value || 'Anonymous';  // Nama pemain atau 'Anonymous'
+        
+        // Buat entry skor baru
+        const entry = { 
+            name: username,                              // Nama pemain
+            score: scoreVal,                             // Total skor
+            timeLeft: remaining,                         // Waktu sisa
+            health: player.health,                       // Nyawa sisa
+            date: new Date().toISOString()              // Tanggal/waktu
+        };
+        
+        // Ambil leaderboard dari localStorage
+        let list = JSON.parse(localStorage.getItem('bomberLeaderboard') || '[]');
+        list.push(entry);  // Tambah entry baru
+        list.sort((a,b) => b.score - a.score);  // Sort dari skor tertinggi
+        list = list.slice(0, 10);  // Cuma simpan top 10 skor aja
+        
+        // Simpan ke localStorage
+        localStorage.setItem('bomberLeaderboard', JSON.stringify(list));
+        
+        // Tampilkan leaderboard
+        renderLeaderboard();
+        const lb = document.getElementById('leaderboard');
+        if (lb) lb.classList.add('show');
+    }
+
+    // Event listener tombol "Restart" di layar game over
+    if (goRestart) {
+        goRestart.addEventListener('click', () => {
+            location.reload();
+        });
+    }
+
+    // Event listener tombol "Main Menu" di layar game over
+    if (goMain) {
+        goMain.addEventListener('click', () => {
+            // Hapus semua modal/overlay
+            gameOverEl.classList.remove('show');
+            mainMenu.classList.remove('hide');
+            gameMenu.classList.remove('playing');
+            isPaused = null;
+            // Reset dengan reload halaman untuk keamanan
+            location.reload();
+        });
+    }
+
+    // Event listener tombol leaderboard
+    const lbRestart = document.getElementById('lb-restart');  // Tombol restart di leaderboard
+    const lbMain = document.getElementById('lb-main');         // Tombol main menu di leaderboard
+    
+    if (lbRestart) {
+        lbRestart.addEventListener('click', () => {
+            location.reload();
+        });
+    }
+    if (lbMain) {
+        lbMain.addEventListener('click', () => {
+            // Tutup leaderboard dan kembali ke main menu
+            const lb = document.getElementById('leaderboard');
+            if (lb) lb.classList.remove('show');
+            mainMenu.classList.remove('hide');
+            gameMenu.classList.remove('playing');
+            isPaused = null;
+            location.reload();
+        });
+    }
+
+    // Event listener tombol buka instruksi
+    openButton.addEventListener("click", () => {
+        instructionMenu.classList.add("show")  // Tampilkan menu instruksi
+    })
+
+    // Event listener tombol tutup instruksi
+    closeButtonInstruction.addEventListener("click", () => {
+        instructionMenu.classList.remove("show");
+    })
+
+    // Event listener tombol tutup pause menu
+    closeButtonPause.addEventListener("click", () => {
+        isPaused = false;
+        pauseMenu.classList.remove("show");
+    })
+
+    // Event listener tombol "Keluar" di pause menu (stop game dan reload)
+    buttonStopGame.addEventListener("click", () => {
+        location.reload();
+    })
+
+    // Event listener tombol "Lanjut" di pause menu (unpause game)
+    buttonContinueGame.addEventListener("click", () => {
+        isPaused = false;
+        pauseMenu.classList.remove("show");
+    })
+
+    // Event listener tombol "Play" di main menu
+    playButton.addEventListener("click", () => {
+        // Validasi username minimal 4 karakter
+        if (usernameInput.value < 4) {
+            alert("tolong masukan username");
+            return;
+        }
+        
+        // Tentukan level yang dipilih dan generate map sesuai level
+        switch(levelSection.value) {
+            case ("easy"):
+                // Generate peta level easy (paling mudah)
+                map = generateRandomEasyMap();
+                // Sembunyikan menu instruksi dan main menu
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                // Tampilkan area game
+                gameMenu.classList.add("playing");
+                gameLoad();  // Start game
+                return;
+            case ("medium"):
+                // Generate peta level medium (sedang)
+                map = generateRandomNormalMap();
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                gameMenu.classList.add("playing");
+                gameLoad();
+                return;
+            case ("hard"):
+                // Generate peta level hard (paling sulit)
+                // Buat random map baru setiap kali main
+                map = generateRandomHardMap();
+                instructionMenu.classList.remove("show");
+                mainMenu.classList.add("hide");
+                gameMenu.classList.add("playing");
+                gameLoad();
+                return;
+            default:
+                alert("level belum tersedia");
+                return;
+        }
+    })
+
+
+
+    
+
+    // function movePlayer(e) {
+    //     let col = player.col
+    //     let row = player.row
+        
+    //     if (e.key == "w") {
+    //         removePlayer(player.x, player.y)
+    //         player.y--
+    //         drawEntities(playerUImage, player.x, player.y)
+    //     }else if (e.key == "a") {
+    //         removePlayer(player.x, player.y)
+    //         player.x--
+    //         drawEntities(playerLImage, player.x, player.y)
+    //     }else if (e.key == "s") {
+    //         removePlayer(player.x, player.y)
+    //         player.y++
+    //         drawEntities(playerDImage, player.x, player.y)
+    //     }else if (e.key == "d") {
+    //         removePlayer(player.x, player.y)
+    //         player.x++
+    //         drawEntities(playerRImage, player.x, player.y)
+    //     }
+    // }
+    // Fungsi ini handle gerakan pemain saat tombol di-press
+    // Pemain bisa gerak dengan WASD atau arrow keys
+    // Juga bisa pickup item yang jatuh dari tembok yang hancur
+    function movePlayer(e) {
+        let col = player.col   // Kolom pemain saat ini
+        let row = player.row   // Baris pemain saat ini
+        
+        // Handle input WASD dan arrow keys buat gerak
+        if (e.key == "w" || e.key == "ArrowUp") {
+            row--  // Bergerak ke atas
+            player.currentImage = playerUImage;
+        }else if (e.key == "a" || e.key == "ArrowLeft") {
+            col--  // Bergerak ke kiri
+            player.currentImage = playerLImage;
+        }else if (e.key == "s" || e.key == "ArrowDown") {
+            row++  // Bergerak ke bawah
+            player.currentImage = playerDImage;
+        }else if (e.key == "d" || e.key == "ArrowRight") {
+            col++  // Bergerak ke kanan
+            player.currentImage = playerRImage;
+        }
+
+        // Check apakah posisi baru adalah ruang kosong (nilai 0 di map)
+        if (map[row] && map[row][col] === 0) {
+            player.row = row;  // Update posisi pemain
+            player.col = col;
+            
+            // Check apakah pemain pickup item di lokasi yang sama
+            const idx = items.findIndex(it => it.row === player.row && it.col === player.col);
+            if (idx !== -1) {
+                const it = items.splice(idx, 1)[0];  // Ambil dan hapus item dari array
+                
+                // Handle sesuai tipe item
+                if (it.type === 'heart') {
+                    // Item hati: tambah nyawa (max 3)
+                    player.health = Math.min(3, (player.health || 0) + 1);
+                } else if (it.type === 'ice') {
+                    // Item ice: perlambat musuh selama 5 detik (double speed)
+                    for (let d of dogs) {
+                        if (!d._origInterval) d._origInterval = d.moveInterval;
+                        d.moveInterval = d._origInterval * 2;  // Gerak 2x lebih lambat
+                    }
+                    setTimeout(() => {
+                        // Setelah 5 detik, kembalikan kecepatan musuh ke normal
+                        for (let d of dogs) {
+                            if (d._origInterval) {
+                                d.moveInterval = d._origInterval;
+                                delete d._origInterval;
+                            }
+                        }
+                    }, 5000);
+                } else if (it.type === 'tnt') {
+                    // Item TNT: tambah ukuran ledakan bom (max 5)
+                    player.bombSize = Math.min(5, (player.bombSize || 1) + 1);
+                }
+            }
+        }
+    }
+
+    // Fungsi ini handle pemain kalo tekan space buat naro bom
+    // Bom hanya bisa ditaro di ruang kosong, dan cuma 1 bom per ruang
+    function playerBomb(e) {
+        let col = player.col;  // Kolom pemain
+        let row = player.row;  // Baris pemain
+
+        if (e.key == "Space" || e.key == " ") {
+            // Check apakah pemain di ruang kosong
+            if (map[row][col] !== 0) {
+                return;  // Ga bisa naro bom di atas tembok
+            }
+
+            // Check apakah udah ada bom di posisi yang sama
+            let existsBomb = bombs.some(b => b.col == col && b.row == row)
+            if (existsBomb) return;  // Ga bisa naro 2 bom di tempat yang sama
+
+            // Naro bom baru
+            bombs.push({
+                col: col,                  // Kolom bom
+                row: row,                  // Baris bom
+                timer: 3000,               // Timer 3 detik sebelum meledak
+                size: player.bombSize || 1,  // Ukuran ledakan
+                exploded: false,           // Status belum meledak
+                explosions: null,          // Array posisi ledakan (di-assign saat meledak)
+                explosionTimer: 0          // Timer efek ledakan
+            });
+        }
+    }
+
+    // Fungsi ini handle ledakan bom
+    // Gambar efek ledakan, hancurin tembok, damage pemain kalo kena, dan ada kemungkinan drop item
+    // Ledakan bisa menyebar ke 4 arah (atas, bawah, kiri, kanan) sampai ukuran bom
+    function explodeBomb(bomb) {
+        bomb.exploded = true;  // Mark bom sebagai sudah meledak
+        bomb.explosionTimer = 600;  // Durasi tampil efek ledakan (600ms)
+        bomb.explosions = [];
+
+        // Pastikan size minimal 1
+        const size = Math.max(1, bomb.size || 1);
+
+        // Masukkan tile pusat (posisi bom itu sendiri)
+        bomb.explosions.push({ row: bomb.row, col: bomb.col });
+
+        // 4 arah penyebaran ledakan: atas, bawah, kiri, kanan
+        const directions = [ {r:-1,c:0}, {r:1,c:0}, {r:0,c:-1}, {r:0,c:1} ];
+
+        // Untuk setiap arah, menyebar sampai ukuran bom atau sampai bertemu tembok keras (1)
+        for (let d of directions) {
+            for (let step = 1; step < size; step++) {
+                const r = bomb.row + d.r * step;
+                const c = bomb.col + d.c * step;
+
+                // Cek batas peta
+                if (!map[r] || typeof map[r][c] === 'undefined') break;
+
+                // Stop jika bertemu tembok keras (1) - tidak bisa tembus
+                if (map[r][c] === 1) break;
+
+                // Tambah tile yang terkena ledakan (buat efek visual)
+                bomb.explosions.push({ row: r, col: c });
+
+                // Jika ada soft wall (2), hancurin
+                if (map[r][c] === 2) {
+                    map[r][c] = 0;  // Ubah menjadi kosong
+                    
+                    if (brick > 0) {
+                        brick--;  // Kurangi counter tembok
+                        // Cek apakah semua tembok udah hancur (game menang)
+                        if (brick === 0) {
+                            showLeaderboard();
+                        }
+                    }
+
+                    // Chance untuk drop item saat tembok hancur
+                    const dropChance = 0.65;  // 65% kesempatan drop item
+                    if (Math.random() < dropChance) {
+                        const types = ['heart','ice','tnt'];
+                        const t = types[Math.floor(Math.random() * types.length)];
+                        items.push({ row: r, col: c, type: t });
+                    }
+
+                    // Stop penyebaran ledakan setelah menghancurkan tembok
+                    break;
+                }
+                // Jika kosong (0) lanjut sampai mencapai ukuran bom
+            }
+        }
+
+        // Check apakah ledakan kena pemain
+        let playerHit = false;
+        for (let cell of bomb.explosions) {
+            if (player.row === cell.row && player.col === cell.col) {
+                player.health = Math.max(0, player.health - 1);  // Kurangi nyawa
+                playerHit = true;
+            }
+        }
+
+        // Jika nyawa pemain habis, tampilkan game over
+        if (player.health <= 0) {
+            showGameOver();
+        }
+
+        // Buat elemen DOM untuk efek visual ledakan
+        bomb.domExplosions = [];
+        const container = document.querySelector('.game');
+        if (container) {
+            // Hitung offset canvas agar ledakan align dengan grid
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const offsetLeft = canvasRect.left - containerRect.left;
+            const offsetTop = canvasRect.top - containerRect.top;
+
+            // Buat elemen div untuk setiap tile ledakan
+            for (let cell of bomb.explosions) {
+                const el = document.createElement('div');
+                el.className = 'explosion';
+                // Position sesuai grid
+                el.style.left = (offsetLeft + cell.col * grid) + 'px';
+                el.style.top = (offsetTop + cell.row * grid) + 'px';
+                el.style.width = grid + 'px';
+                el.style.height = grid + 'px';
+
+                // Bikin 4 "lengan" efek ledakan (bentuk + sign)
+                for (let a = 0; a < 4; a++) {
+                    const arm = document.createElement('div');
+                    arm.className = 'explosion arm';
+                    arm.style.position = 'absolute';
+                    arm.style.pointerEvents = 'none';
+                    arm.style.background = 'transparent';
+                    
+                    if (a === 0) { // Lengan atas
+                        arm.style.width = (grid * 0.25) + 'px';
+                        arm.style.height = (grid * 0.6) + 'px';
+                        arm.style.left = (grid * 0.375) + 'px';
+                        arm.style.top = '-' + (grid * 0.6) + 'px';
+                    } else if (a === 1) { // Lengan bawah
+                        arm.style.width = (grid * 0.25) + 'px';
+                        arm.style.height = (grid * 0.6) + 'px';
+                        arm.style.left = (grid * 0.375) + 'px';
+                        arm.style.top = (grid) + 'px';
+                    } else if (a === 2) { // Lengan kiri
+                        arm.style.width = (grid * 0.6) + 'px';
+                        arm.style.height = (grid * 0.25) + 'px';
+                        arm.style.left = '-' + (grid * 0.6) + 'px';
+                        arm.style.top = (grid * 0.375) + 'px';
+                    } else { // Lengan kanan
+                        arm.style.width = (grid * 0.6) + 'px';
+                        arm.style.height = (grid * 0.25) + 'px';
+                        arm.style.left = (grid) + 'px';
+                        arm.style.top = (grid * 0.375) + 'px';
+                    }
+                    el.appendChild(arm);
+                }
+                container.appendChild(el);
+                bomb.domExplosions.push(el);
+            }
+        }
+    }
+
+    // Fungsi ini (sekarang tidak dipakai, tinggal legacy code)
+    // Dulu buat ngapus pemain dari posisi lama saat gerak
+    function removePlayer(positionX, positionY) {
+        let tile = map[positionX, positionY];
+        // Legacy function - tidak dipakai lagi
+    }
+
+    // Fungsi ini (sekarang tidak dipakai, tinggal legacy code)
+    // Dulu buat gambar entity (pemain, musuh, dll) di canvas
+    function drawEntities(image, positionX, positionY) {
+        if (image.complete) {
+            const x = positionX * grid;
+            const y = positionY * grid;
+            ctx.drawImage(image, x, y, grid, grid);
+        }
+    }
+
+    // Fungsi ini adalah LOOP UTAMA GAME
+    // Dipanggil setiap frame dengan requestAnimationFrame
+    // Dia ngupdate semua elemen game (posisi pemain, musuh, bom) dan gambar semuanya di canvas
+    function gameLoop () {
+        // Clear canvas (hapus gambar frame sebelumnya)
+        ctx.clearRect(0, 0, 1000, 600);
+        
+        // Gambar background/latar peta
+        if (bgImage.complete) {
+            ctx.drawImage(bgImage, 0, 0, 704, 576);
+        }
+
+        // Gambar semua elemen game
+        drawMap();      // Gambar tembok lunak
+        drawItems();    // Gambar item
+        drawDog();      // Gambar musuh
+        drawBomb();     // Gambar bom
+        updateBomb();   // Update status bom
+
+        // Update posisi musuh dengan frame delta (~16ms per frame)
+        updateDogs(16);
+
+        // Gambar pemain
+        player.render();
+
+        // Gambar panel status di sebelah kanan
+        ctx.fillStyle = "#333";  
+        ctx.fillRect(700, 0, 400, canvas.height);
+        
+        // Tulis status game di panel kanan
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.fillText("Player : " + usernameInput.value, 720, 100);  // Nama pemain
+        ctx.fillText("Time   : " + timer, 720, 130);               // Waktu
+        ctx.fillText(calcHealth(), 720, 180);                       // Nyawa
+        ctx.fillText("Brick = " + brick, 720, 220);                // Tembok
+        ctx.fillText("Bomb  = 0", 720, 250);                       // Bom
+        ctx.fillText("Ice   = 1", 720, 280);                       // Item ice
+        
+        // Panggil fungsi ini lagi di frame berikutnya
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Event listener buat keyboard input
+    // Handle gerakan pemain (WASD/arrow), naro bom (space), dan pause/unpause (escape)
+    document.addEventListener("keydown", (e) => {
+        movePlayer(e)      // Handle gerakan pemain
+        playerBomb(e)      // Handle naro bom
+
+        // Handle pause/unpause dengan tombol Escape
+        if (e.key == "Escape" && isPaused) {
+            // Unpause game
+            isPaused = false;
+            pauseMenu.classList.remove("show");
+        } else if(e.key == "Escape") {
+            // Pause game
+            isPaused = true;
+            pauseMenu.classList.add("show")
+        }
+    })
