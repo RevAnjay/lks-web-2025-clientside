@@ -60,7 +60,7 @@
         <div class="entries"></div>
         <div class="actions">
             <button id="go-restart">Restart</button>
-            <button id="lb-main">Main Menu</button>
+            <button id="lb-reset">Reset</button>
         </div>
     </div>
     <div class="loading-screen" id="loading-screen">
@@ -970,7 +970,7 @@
         player.row = 1;
         player.col = 1;
         player.health = 3;
-        player.bombSize = 1;
+        player.bombSize = 2;
         // Clear interval timer kalo masih jalan
         if (timerInterval) clearInterval(timerInterval);
     }
@@ -1085,8 +1085,21 @@
             // Reset game state
             resetGameState();
             
-            // Gunakan map yang sama seperti game sebelumnya (jangan generate baru)
-            let selectedMap = currentMap;  // Pakai map yang sudah tersimpan
+            // Generate map baru tapi tetap level yang sama
+            let selectedMap;
+            switch(currentLevel) {
+                case 'easy':
+                    selectedMap = generateRandomEasyMap();
+                    break;
+                case 'medium':
+                    selectedMap = generateRandomNormalMap();
+                    break;
+                case 'hard':
+                    selectedMap = generateRandomHardMap();
+                    break;
+                default:
+                    selectedMap = generateRandomEasyMap();
+            }
             
             // Tampilkan loading screen dengan countdown
             loadingScreen.classList.add("show");
@@ -1144,17 +1157,13 @@
     // }
 
     // Event listener tombol leaderboard
-    const lbMain = document.getElementById('lb-main');         // Tombol main menu di leaderboard
+    const lbReset = document.getElementById('lb-reset');         // Tombol main menu di leaderboard
 
-    if (lbMain) {
-        lbMain.addEventListener('click', () => {
+    if (lbReset) {
+        lbReset.addEventListener('click', () => {
             // Tutup leaderboard dan kembali ke main menu
-            const lb = document.getElementById('leaderboard');
-            if (lb) lb.classList.remove('show');
-            mainMenu.classList.remove('hide');
-            gameMenu.classList.remove('playing');
-            isPaused = null;
-            location.reload();
+            localStorage.clear();
+            alert("Leaderboard telah direset.");
         });
     }
 
